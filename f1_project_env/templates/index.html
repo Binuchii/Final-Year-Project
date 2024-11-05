@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Predictor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <h1>F1 Predictor Data Fetcher</h1>
+    
+    <form method="post">
+        <label for="data_type">Select Data Type:</label>
+        <select id="data_type" name="data_type">
+            <option value="meetings">Meetings</option>
+            <option value="drivers">Drivers</option>
+            <option value="sessions">Sessions</option>
+            <option value="pit">Pit</option>
+            <option value="weather">Weather</option>
+        </select>
+        <button type="submit">Fetch Data</button>
+    </form>
+    
+    {% if data %}
+    <h2>Data Output:</h2>
+    <div class="table-container">
+        {{ data|safe }}
+    </div>
+    {% endif %}
+</body>
+</html>
