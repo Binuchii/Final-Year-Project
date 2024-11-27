@@ -73,16 +73,8 @@ def clean_meetings_data(data):
     """
     if data is not None and not data.empty:
         # Keep relevant columns
-        columns_to_keep = ["meetingId", "season", "round", "name", "date", "circuitId"]
+        columns_to_keep = ["circuit_key", "circuit_short_name", "year"]
         data = data[columns_to_keep]
-
-        # Convert 'date' to a standardized datetime format
-        data["date"] = pd.to_datetime(data["date"], errors="coerce")
-
-        # Filter for relevant seasons (e.g., last 10 years)
-        data = data[data["season"] >= (pd.Timestamp.now().year - 10)]
-
-        print("Cleaned meetings data")
     return data
 
 
@@ -92,17 +84,8 @@ def clean_drivers_data(data):
     """
     if data is not None and not data.empty:
         # Keep relevant columns
-        columns_to_keep = ["driverId", "code", "forename", "surname", "dob", "nationality"]
+        columns_to_keep = ["driver_number", "first_name", "last_name", "meeting_key", "team_name"]
         data = data[columns_to_keep]
-
-        # Format date of birth and calculate driver age
-        data["dob"] = pd.to_datetime(data["dob"], errors="coerce")
-        data["age"] = (pd.Timestamp.now() - data["dob"]).dt.days // 365
-
-        # Remove drivers with missing or invalid dates of birth
-        data = data.dropna(subset=["dob"])
-
-        print("Cleaned drivers data")
     return data
 
 
@@ -112,16 +95,8 @@ def clean_pit_data(data):
     """
     if data is not None and not data.empty:
         # Keep relevant columns
-        columns_to_keep = ["raceId", "driverId", "stop", "lap", "time", "duration"]
+        columns_to_keep = ["driver_number", "meeting_key", "pit_duration"]
         data = data[columns_to_keep]
-
-        # Convert 'duration' to numeric format (e.g., seconds)
-        data["duration"] = pd.to_numeric(data["duration"], errors="coerce")
-
-        # Remove rows with missing duration
-        data = data.dropna(subset=["duration"])
-
-        print("Cleaned pit stop data")
     return data
 
 
@@ -131,13 +106,8 @@ def clean_weather_data(data):
     """
     if data is not None and not data.empty:
         # Keep relevant columns
-        columns_to_keep = ["raceId", "temperature", "humidity", "rain", "wind_speed"]
+        columns_to_keep = ["humidity", "meeting_key", "pressure", "rainfall", "track_temperature"]
         data = data[columns_to_keep]
-
-        # Fill missing weather metrics with average values
-        data.fillna(data.mean(numeric_only=True), inplace=True)
-
-        print("Cleaned weather data")
     return data
 
 
@@ -191,30 +161,35 @@ def get_qualifying():
 @app.route("/api/meetings", methods=["GET"])
 def get_meetings():
     data = fetch_openf1_data("meetings")
-    if data is not None:
-        return data.to_json(orient="records")
+    cleaned_data = clean_meetings_data(data)
+    if cleaned_data is not None:
+        return cleaned_data.to_json(orient="records")
     return jsonify({"error": "Meetings data not found"}), 404
 
 @app.route("/api/drivers", methods=["GET"])
 def get_drivers():
     data = fetch_openf1_data("drivers")
-    if data is not None:
-        return data.to_json(orient="records")
+    cleaned_data = clean_drivers_data(data)
+    if cleaned_data is not None:
+        return cleaned_data.to_json(orient="records")
     return jsonify({"error": "Drivers data not found"}), 404
 
 @app.route("/api/pit", methods=["GET"])
 def get_pit():
     data = fetch_openf1_data("pit")
-    if data is not None:
-        return data.to_json(orient="records")
+    cleaned_data = clean_pit_data(data)
+    if cleaned_data is not None:
+        return cleaned_data.to_json(orient="records")
     return jsonify({"error": "Pit data not found"}), 404
 
 @app.route("/api/weather", methods=["GET"])
 def get_weather():
     data = fetch_openf1_data("weather")
-    if data is not None:
-        return data.to_json(orient="records")
+    cleaned_data = clean_weather_data(data)
+    if cleaned_data is not None:
+        return cleaned_data.to_json(orient="records")
     return jsonify({"error": "Weather data not found"}), 404
+
 
 # Frontend interaction to fetch data by user input
 @app.route("/fetch_data", methods=["POST"])
