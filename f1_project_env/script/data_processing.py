@@ -2,6 +2,8 @@ import os
 import pandas as pd
 import requests
 from flask import Flask, jsonify, render_template, request
+import json
+import shutil
 
 
 # Initialize the Flask app
@@ -73,7 +75,7 @@ def clean_meetings_data(data):
     """
     if data is not None and not data.empty:
         # Keep relevant columns
-        columns_to_keep = ["circuit_key", "circuit_short_name", "year"]
+        columns_to_keep = ["circuit_key", "meeting_key", "circuit_short_name", "year"]
         data = data[columns_to_keep]
     return data
 
@@ -158,38 +160,139 @@ def get_qualifying():
     return jsonify({"error": "Qualifying data not found"}), 404
 
 # OpenF1 API endpoints
-@app.route("/api/meetings", methods=["GET"])
-def get_meetings():
-    data = fetch_openf1_data("meetings")
-    cleaned_data = clean_meetings_data(data)
-    if cleaned_data is not None:
-        return cleaned_data.to_json(orient="records")
-    return jsonify({"error": "Meetings data not found"}), 404
-
 @app.route("/api/drivers", methods=["GET"])
 def get_drivers():
+    # Define the directory where you want the JSON file to be saved
+    data_dir = os.path.join(os.getcwd(), 'data')  # Assuming 'data' folder is in the current directory
+    file_path = os.path.join(data_dir, "drivers.json")
+    
+    # Ensure the 'data' folder exists
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Check if file exists
+    if os.path.exists(file_path):
+        print(f"File already exists at: {file_path}")
+        return jsonify({"message": f"File already exists at: {file_path}"}), 200
+    
+    # Fetch and process data
+    print("Fetching drivers data from OpenF1 API...")
     data = fetch_openf1_data("drivers")
+    if data is None or data.empty:
+        print("Drivers data not found")
+        return jsonify({"error": "Drivers data not found"}), 404
+    
     cleaned_data = clean_drivers_data(data)
+    print(f"Cleaned data: {cleaned_data.shape[0]} rows")
+    
     if cleaned_data is not None:
-        return cleaned_data.to_json(orient="records")
-    return jsonify({"error": "Drivers data not found"}), 404
+        # Save to the desired path in the 'data' folder
+        cleaned_data.to_json(file_path, orient="records", indent=4)
+        print(f"File created successfully at: {file_path}")
+        
+        return jsonify({"message": f"File created successfully at: {file_path}"}), 201
+    
+    return jsonify({"error": "Failed to create drivers data"}), 500
+
+@app.route("/api/meetings", methods=["GET"])
+def get_meetings():
+    # Define the directory where you want the JSON file to be saved
+    data_dir = os.path.join(os.getcwd(), 'data')  # Assuming 'data' folder is in the current directory
+    file_path = os.path.join(data_dir, "meetings.json")
+    
+    # Ensure the 'data' folder exists
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Check if file exists
+    if os.path.exists(file_path):
+        print(f"File already exists at: {file_path}")
+        return jsonify({"message": f"File already exists at: {file_path}"}), 200
+    
+    # Fetch and process data
+    print("Fetching meetings data from OpenF1 API...")
+    data = fetch_openf1_data("meetings")
+    if data is None or data.empty:
+        print("Meetings data not found")
+        return jsonify({"error": "Meetings data not found"}), 404
+    
+    cleaned_data = clean_meetings_data(data)
+    print(f"Cleaned data: {cleaned_data.shape[0]} rows")
+    
+    if cleaned_data is not None:
+        # Save to the desired path in the 'data' folder
+        cleaned_data.to_json(file_path, orient="records", indent=4)
+        print(f"File created successfully at: {file_path}")
+        
+        return jsonify({"message": f"File created successfully at: {file_path}"}), 201
+    
+    return jsonify({"error": "Failed to create meetings data"}), 500
+
 
 @app.route("/api/pit", methods=["GET"])
 def get_pit():
+    # Define the directory where you want the JSON file to be saved
+    data_dir = os.path.join(os.getcwd(), 'data')  # Assuming 'data' folder is in the current directory
+    file_path = os.path.join(data_dir, "pit.json")
+    
+    # Ensure the 'data' folder exists
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Check if file exists
+    if os.path.exists(file_path):
+        print(f"File already exists at: {file_path}")
+        return jsonify({"message": f"File already exists at: {file_path}"}), 200
+    
+    # Fetch and process data
+    print("Fetching pit data from OpenF1 API...")
     data = fetch_openf1_data("pit")
+    if data is None or data.empty:
+        print("Pit data not found")
+        return jsonify({"error": "Pit data not found"}), 404
+    
     cleaned_data = clean_pit_data(data)
+    print(f"Cleaned data: {cleaned_data.shape[0]} rows")
+    
     if cleaned_data is not None:
-        return cleaned_data.to_json(orient="records")
-    return jsonify({"error": "Pit data not found"}), 404
+        # Save to the desired path in the 'data' folder
+        cleaned_data.to_json(file_path, orient="records", indent=4)
+        print(f"File created successfully at: {file_path}")
+        
+        return jsonify({"message": f"File created successfully at: {file_path}"}), 201
+    
+    return jsonify({"error": "Failed to create pit data"}), 500
+
 
 @app.route("/api/weather", methods=["GET"])
 def get_weather():
+    # Define the directory where you want the JSON file to be saved
+    data_dir = os.path.join(os.getcwd(), 'data')  # Assuming 'data' folder is in the current directory
+    file_path = os.path.join(data_dir, "weather.json")
+    
+    # Ensure the 'data' folder exists
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Check if file exists
+    if os.path.exists(file_path):
+        print(f"File already exists at: {file_path}")
+        return jsonify({"message": f"File already exists at: {file_path}"}), 200
+    
+    # Fetch and process data
+    print("Fetching weather data from OpenF1 API...")
     data = fetch_openf1_data("weather")
+    if data is None or data.empty:
+        print("Weather data not found")
+        return jsonify({"error": "Weather data not found"}), 404
+    
     cleaned_data = clean_weather_data(data)
+    print(f"Cleaned data: {cleaned_data.shape[0]} rows")
+    
     if cleaned_data is not None:
-        return cleaned_data.to_json(orient="records")
-    return jsonify({"error": "Weather data not found"}), 404
-
+        # Save to the desired path in the 'data' folder
+        cleaned_data.to_json(file_path, orient="records", indent=4)
+        print(f"File created successfully at: {file_path}")
+        
+        return jsonify({"message": f"File created successfully at: {file_path}"}), 201
+    
+    return jsonify({"error": "Failed to create weather data"}), 500
 
 # Frontend interaction to fetch data by user input
 @app.route("/fetch_data", methods=["POST"])
@@ -211,6 +314,7 @@ def fetch_data():
         return get_weather()
     else:
         return jsonify({"error": "Invalid data type requested"}), 400
+    
 
 # Run the app
 if __name__ == "__main__":
