@@ -6,7 +6,6 @@ import json
 
 # Initialize the Flask app
 app = Flask(__name__, template_folder="../templates")  # Adjust the path if templates are elsewhere
-
 # Base URL for OpenF1 API
 OPENF1_BASE_URL = "https://api.openf1.org/v1/"
 
@@ -27,28 +26,21 @@ def load_kaggle_data(file_path):
         print(f"Error loading {file_path}: {e}")
         return None
 
-def clean_circuits_data(data):
-    """
-    Clean the circuits dataset by removing irrelevant columns and handling missing values.
-    """
-    if data is not None:
-        # Drop irrelevant columns
-        columns_to_keep = ["circuitId", "name", "location", "country"]
-        data = data[columns_to_keep]
-
-        # Handle missing values (e.g., drop rows where location or country is missing)
-        data = data.dropna(subset=["location", "country"])
-    return data
-
 
 def clean_constructorResults_data(data):
     """
-    Clean the constructors dataset by removing irrelevant columns and handling missing values.
+    Clean the constructors dataset by removing irrelevant columns, handling missing values, 
+    and filtering out rows with raceId lower than or equal to 1053.
     """
     if data is not None:
         # Drop irrelevant columns
         columns_to_keep = ["constructorResultsId", "raceId", "constructorId", "points"]
         data = data[columns_to_keep]
+        
+        # Filter out rows where raceId is less than or equal to 1053
+        data = data[data['raceId'] >= 1053]
+        data = data.rename(columns={'points': 'points_AtRace'})
+        
     return data
 
 
@@ -58,7 +50,7 @@ def clean_qualifying_data(data):
     """
     if data is not None:
         # Drop irrelevant columns
-        columns_to_keep = ["qualifyId", "raceId", "driverId", "constructorId", "position", "q1", "q2", "q3"]
+        columns_to_keep = ["qualifyId", "raceId", "driverId", "q1", "q2", "q3"]
         data = data[columns_to_keep]
 
         # Handle missing qualifying times by replacing with "N/A"
@@ -116,6 +108,10 @@ def clean_Standings_data(data):
         # Keep relevant columns
         columns_to_keep = ["constructorStandingsId", "raceId", "constructorId", "points", "position", "wins"]
         data = data[columns_to_keep]
+
+        # Filter out rows where raceId is less than or equal to 1053
+        data = data[data['raceId'] >= 1053]
+        data = data.rename(columns={'points': 'constructor_points'})
     return data
 
 def clean_teams_data(data):
@@ -137,18 +133,6 @@ def clean_results_data(data):
         columns_to_keep = ["resultId", "raceId", "driverId", "constructorId", "position"]
         data = data[columns_to_keep]
     return data
-
-
-def clean_pit_data(data):
-    """
-    Clean the pit stop data fetched from the OpenF1 API.
-    """
-    if data is not None and not data.empty:
-        # Keep relevant columns
-        columns_to_keep = ["driver_number", "meeting_key", "pit_duration"]
-        data = data[columns_to_keep]
-    return data
-
 
 def clean_weather_data(data):
     if data is not None and not data.empty:
@@ -177,7 +161,6 @@ kaggle_data = {
     "drivers": clean_drivers_data(load_kaggle_data(os.path.join(data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/data/drivers.csv"))),
     "races": clean_races_data(load_kaggle_data(os.path.join(data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/data/races.csv"))),
     "results": clean_results_data(load_kaggle_data(os.path.join(data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/data/results.csv"))),
-    "circuits": clean_circuits_data(load_kaggle_data(os.path.join(data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/data/circuits.csv"))),
     "constructorResults": clean_constructorResults_data(load_kaggle_data(os.path.join(data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/data/constructor_results.csv"))),
     "constructorStandings": clean_Standings_data(load_kaggle_data(os.path.join(data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/data/constructor_standings.csv"))),
     "teams": clean_teams_data(load_kaggle_data(os.path.join(data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/data/constructors.csv"))),
@@ -234,12 +217,6 @@ def get_results():
         return kaggle_data["results"].to_json(orient="records")
     return jsonify({"error": "Drivers data not found"}), 404
 
-@app.route("/api/circuits", methods=["GET"])
-def get_circuits():
-    if kaggle_data["circuits"] is not None:
-        return kaggle_data["circuits"].to_json(orient="records")
-    return jsonify({"error": "Circuits data not found"}), 404
-
 @app.route("/api/constructorResults", methods=["GET"])
 def get_constructorResults():
     if kaggle_data["constructorResults"] is not None:
@@ -286,40 +263,6 @@ def get_meetings():
     return jsonify({"error": "Failed to create meetings data"}), 500
 
 
-@app.route("/api/pit", methods=["GET"])
-def get_pit():
-    # Define the directory where you want the JSON file to be saved
-    data_dir = os.path.join(os.getcwd(), 'data')  # Assuming 'data' folder is in the current directory
-    file_path = os.path.join(data_dir, "pit.json")
-    
-    # Ensure the 'data' folder exists
-    os.makedirs(data_dir, exist_ok=True)
-    
-    # Check if file exists
-    if os.path.exists(file_path):
-        print(f"File already exists at: {file_path}")
-        return jsonify({"message": f"File already exists at: {file_path}"}), 200
-    
-    # Fetch and process data
-    print("Fetching pit data from OpenF1 API...")
-    data = fetch_openf1_data("pit")
-    if data is None or data.empty:
-        print("Pit data not found")
-        return jsonify({"error": "Pit data not found"}), 404
-    
-    cleaned_data = clean_pit_data(data)
-    print(f"Cleaned data: {cleaned_data.shape[0]} rows")
-    
-    if cleaned_data is not None:
-        # Save to the desired path in the 'data' folder
-        cleaned_data.to_json(file_path, orient="records", indent=4)
-        print(f"File created successfully at: {file_path}")
-        
-        return jsonify({"message": f"File created successfully at: {file_path}"}), 201
-    
-    return jsonify({"error": "Failed to create pit data"}), 500
-
-
 @app.route("/api/weather", methods=["GET"])
 def get_weather():
     data = fetch_openf1_data("weather")
@@ -327,7 +270,52 @@ def get_weather():
     if cleaned_data is not None:
         return cleaned_data.to_json(orient="records")
     return jsonify({"error": "Weather data not found"}), 404
+
+# Folder where CSV files are stored
+CIRCUITS_FOLDER = r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\data\calculated_variables"
+
+# Dictionary to store cleaned DataFrames
+circuits_data = {} 
+
+def load_and_clean_circuit_data():
+    # Iterate through all CSV files in the folder
+    for filename in os.listdir(CIRCUITS_FOLDER):
+        if filename.endswith(".csv"):
+            # Extract the circuit name (e.g., "monaco" from "monaco_circuit.csv")
+            circuit_name = filename.split(" ")[0].lower()
+            
+            # Load the CSV into a DataFrame
+            file_path = os.path.join(CIRCUITS_FOLDER, filename)
+            df = pd.read_csv(file_path)
+            
+            # Apply your cleaning logic (example: remove NaNs)
+            df = df.dropna()
+            
+            # Store the cleaned DataFrame in a dictionary with the circuit name as the key
+            circuits_data[circuit_name] = df
+
+# Load the data when the script runs
+load_and_clean_circuit_data()
+
+@app.route("/api/circuit/<string:circuit_name>", methods=["GET"])
+def get_circuit_data(circuit_name):
+    # Check if the circuit exists in the dictionary
+    circuit_name = circuit_name.lower()
+    if circuit_name in circuits_data:
+        # Convert the DataFrame to a JSON response
+        return jsonify(circuits_data[circuit_name].to_dict(orient="records"))
+    else:
+        return jsonify({"error": "Circuit not found"}), 404
     
+# # Flask route to list all available circuits
+# @app.route("/api/circuits", methods=["GET"])
+# def list_all_circuits():
+#     """
+#     List all available circuits by name.
+#     """
+#     available_circuits = list(circuit_data_dict.keys())
+#     return jsonify({"available_circuits": available_circuits})
+
 @app.route("/api/race_merge", methods=["GET"])
 def get_race_merge():
     """
@@ -336,7 +324,7 @@ def get_race_merge():
     races_data = kaggle_data["races"]
     results_data = kaggle_data["results"]
     qualifying_data = kaggle_data["qualifying"]
-    drivers_data = kaggle_data["drivers"]  # Assuming this is available in your kaggle_data
+    drivers_data = kaggle_data["drivers"]
 
     if races_data is not None and results_data is not None and qualifying_data is not None and drivers_data is not None:
         # Merge races and results on "raceId"
@@ -347,10 +335,11 @@ def get_race_merge():
         
         # Merge the resulting dataset with drivers data on "driverId"
         merged_data = pd.merge(merged_data, drivers_data, on="driverId", how="inner")
-        
-        return merged_data.to_json(orient="records")
+
+        return merged_data.to_json(orient="records", force_ascii=False)
     else:
         return jsonify({"error": "Data not found"}), 404
+
     
 @app.route("/api/standings_merge", methods=["GET"])
 def get_standings_merge():
@@ -359,18 +348,61 @@ def get_standings_merge():
     """
     standings_data = kaggle_data["constructorStandings"]
     teams_data = kaggle_data["teams"]
-    results_data = kaggle_data["results"]
+    Contructor_results_data = kaggle_data["constructorResults"]
 
-    if standings_data is not None and teams_data is not None and results_data is not None:
+    if standings_data is not None and teams_data is not None and Contructor_results_data is not None:
         # Merge standings and teams on "constructorId"
         merged_data = pd.merge(standings_data, teams_data, on="constructorId", how="inner")
         
         # Merge the resulting dataset with results data on "constructorId" and "raceId"
-        merged_data = pd.merge(merged_data, results_data, on=["constructorId", "raceId"], how="inner")
+        merged_data = pd.merge(merged_data, Contructor_results_data, on=["constructorId", "raceId"], how="inner")
         
-        return merged_data.to_json(orient="records")
+        return merged_data.to_json(orient="records", force_ascii=False)
     else:
         return jsonify({"error": "Data not found"}), 404
+    
+
+# @app.route("/api/combined_merge", methods=["GET"])
+# def get_full_race_data():
+#     """
+#     Join the cleaned races, results, qualifying, drivers, standings, teams, and constructorResults data on appropriate keys.
+#     """
+#     # Load data from kaggle_data (replace with actual data fetching if needed)
+#     races_data = kaggle_data["races"]
+#     results_data = kaggle_data["results"]
+#     qualifying_data = kaggle_data["qualifying"]
+#     drivers_data = kaggle_data["drivers"]
+#     standings_data = kaggle_data["constructorStandings"]
+#     teams_data = kaggle_data["teams"]
+#     constructor_results_data = kaggle_data["constructorResults"]
+
+#     # Check if all required datasets are available
+#     if (races_data is not None and results_data is not None and qualifying_data is not None and
+#         drivers_data is not None and standings_data is not None and teams_data is not None and
+#         constructor_results_data is not None):
+        
+#         # Merge races and results on "raceId"
+#         merged_data = pd.merge(races_data, results_data, on="raceId", how="inner")
+        
+#         # Merge the resulting dataset with qualifying data on "raceId" and "driverId"
+#         merged_data = pd.merge(merged_data, qualifying_data, on=["raceId", "driverId"], how="inner")
+        
+#         # Merge the resulting dataset with drivers data on "driverId"
+#         merged_data = pd.merge(merged_data, drivers_data, on="driverId", how="inner")
+        
+#         # Merge the standings data with teams data on "constructorId"
+#         merged_data = pd.merge(merged_data, standings_data, on="raceId", how="inner")
+#         merged_data = pd.merge(merged_data, teams_data, on="constructorId", how="inner")
+        
+#         # Merge the constructor results with the merged data on "constructorId" and "raceId"
+#         merged_data = pd.merge(merged_data, constructor_results_data, on=["constructorId", "raceId"], how="inner")
+        
+#         # Return the final merged data as JSON
+#         return merged_data.to_json(orient="records")
+    
+#     else:
+#         return jsonify({"error": "Data not found"}), 404
+
 
 def merge_meetings_weather(meetings_data, weather_data):
     """
@@ -408,9 +440,7 @@ def get_meetings_weather():
 @app.route("/fetch_data", methods=["POST"])
 def fetch_data():
     data_type = request.form.get("data_type")
-    if data_type == "circuits":
-        return get_circuits()
-    elif data_type == "races":
+    if data_type == "races":
         return get_races()
     elif data_type == "results":
         return get_results()
@@ -426,8 +456,6 @@ def fetch_data():
         return get_meetings()
     elif data_type == "drivers":
         return get_drivers()
-    elif data_type == "pit":
-        return get_pit()
     elif data_type == "weather":
         return get_weather()
     else:
