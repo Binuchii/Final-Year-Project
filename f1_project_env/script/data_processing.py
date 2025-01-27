@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import requests
 from flask import Flask, jsonify, render_template, request
+from configure_weather import configure_weather
 import json
 
 # Initialize the Flask app
@@ -65,10 +66,9 @@ def clean_meetings_data(data):
     """
     if data is not None and not data.empty:
         # Keep relevant columns
-        columns_to_keep = ["circuit_key", "meeting_key", "circuit_short_name", "location", "country_name"]
+        columns_to_keep = ["meeting_key", "circuit_short_name", "location", "country_name"]
         data = data[columns_to_keep]
     return data
-
 
 def clean_drivers_data(data):
     """
@@ -418,7 +418,7 @@ def merge_meetings_weather(meetings_data, weather_data):
 @app.route("/api/meetings_weather", methods=["GET"])
 def get_meetings_weather():
     """
-    API endpoint to fetch and merge meetings and weather data from the OpenF1 API.
+    API endpoint to fetch, merge, and save meetings and weather data from the OpenF1 API to a CSV file.
     """
     # Fetch data from the OpenF1 API
     meetings_data = fetch_openf1_data("meetings")
@@ -432,6 +432,12 @@ def get_meetings_weather():
     final_data = merge_meetings_weather(cleaned_meetings_data, cleaned_weather_data)
 
     if final_data is not None:
+        # Save the merged data to a CSV file
+        output_file = os.path.join("data", "meetings_weather.csv")  # Save to a folder named 'data'
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)  # Create the 'data' directory if it doesn't exist
+        final_data.to_csv(output_file, index=False)
+
+        # Return the final data as a JSON response for the API
         return final_data.to_json(orient="records", force_ascii=False)
     else:
         return jsonify({"error": "Data not found"}), 404

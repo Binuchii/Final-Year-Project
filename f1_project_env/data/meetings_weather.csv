@@ -1,0 +1,144 @@
+meeting_key,circuit_short_name,location,country_name,date,weather_type
+1140,Sakhir,Sakhir,Bahrain,2023-02-23,No Rain
+1140,Sakhir,Sakhir,Bahrain,2023-02-24,No Rain
+1140,Sakhir,Sakhir,Bahrain,2023-02-25,No Rain
+1141,Sakhir,Sakhir,Bahrain,2023-03-03,No Rain
+1141,Sakhir,Sakhir,Bahrain,2023-03-04,No Rain
+1141,Sakhir,Sakhir,Bahrain,2023-03-05,No Rain
+1142,Jeddah,Jeddah,Saudi Arabia,2023-03-17,No Rain
+1142,Jeddah,Jeddah,Saudi Arabia,2023-03-18,No Rain
+1142,Jeddah,Jeddah,Saudi Arabia,2023-03-19,No Rain
+1143,Melbourne,Melbourne,Australia,2023-03-31,Rain
+1143,Melbourne,Melbourne,Australia,2023-04-01,Rain
+1143,Melbourne,Melbourne,Australia,2023-04-02,No Rain
+1207,Baku,Baku,Azerbaijan,2023-04-28,No Rain
+1207,Baku,Baku,Azerbaijan,2023-04-29,Rain
+1207,Baku,Baku,Azerbaijan,2023-04-30,No Rain
+1208,Miami,Miami,United States,2023-05-05,No Rain
+1208,Miami,Miami,United States,2023-05-06,No Rain
+1208,Miami,Miami,United States,2023-05-07,No Rain
+1210,Monte Carlo,Monaco,Monaco,2023-05-26,No Rain
+1210,Monte Carlo,Monaco,Monaco,2023-05-27,No Rain
+1210,Monte Carlo,Monaco,Monaco,2023-05-28,Rain
+1211,Catalunya,Barcelona,Spain,2023-06-02,No Rain
+1211,Catalunya,Barcelona,Spain,2023-06-03,Rain
+1211,Catalunya,Barcelona,Spain,2023-06-04,No Rain
+1212,Montreal,Montréal,Canada,2023-06-16,Rain
+1212,Montreal,Montréal,Canada,2023-06-17,Rain
+1212,Montreal,Montréal,Canada,2023-06-18,No Rain
+1213,Spielberg,Spielberg,Austria,2023-06-30,No Rain
+1213,Spielberg,Spielberg,Austria,2023-07-01,Rain
+1213,Spielberg,Spielberg,Austria,2023-07-02,Rain
+1214,Silverstone,Silverstone,Great Britain,2023-07-07,No Rain
+1214,Silverstone,Silverstone,Great Britain,2023-07-08,Rain
+1214,Silverstone,Silverstone,Great Britain,2023-07-09,No Rain
+1215,Hungaroring,Budapest,Hungary,2023-07-21,Rain
+1215,Hungaroring,Budapest,Hungary,2023-07-22,No Rain
+1215,Hungaroring,Budapest,Hungary,2023-07-23,No Rain
+1216,Spa-Francorchamps,Spa-Francorchamps,Belgium,2023-07-28,Rain
+1216,Spa-Francorchamps,Spa-Francorchamps,Belgium,2023-07-29,Rain
+1216,Spa-Francorchamps,Spa-Francorchamps,Belgium,2023-07-30,Rain
+1217,Zandvoort,Zandvoort,Netherlands,2023-08-25,No Rain
+1217,Zandvoort,Zandvoort,Netherlands,2023-08-26,Rain
+1217,Zandvoort,Zandvoort,Netherlands,2023-08-27,Rain
+1218,Monza,Monza,Italy,2023-09-01,No Rain
+1218,Monza,Monza,Italy,2023-09-02,No Rain
+1218,Monza,Monza,Italy,2023-09-03,No Rain
+1219,Singapore,Marina Bay,Singapore,2023-09-15,No Rain
+1219,Singapore,Marina Bay,Singapore,2023-09-16,No Rain
+1219,Singapore,Marina Bay,Singapore,2023-09-17,No Rain
+1220,Suzuka,Suzuka,Japan,2023-09-22,Rain
+1220,Suzuka,Suzuka,Japan,2023-09-23,No Rain
+1220,Suzuka,Suzuka,Japan,2023-09-24,No Rain
+1221,Lusail,Lusail,Qatar,2023-10-06,No Rain
+1221,Lusail,Lusail,Qatar,2023-10-07,No Rain
+1221,Lusail,Lusail,Qatar,2023-10-08,No Rain
+1222,Austin,Austin,United States,2023-10-20,Rain
+1222,Austin,Austin,United States,2023-10-21,No Rain
+1222,Austin,Austin,United States,2023-10-22,No Rain
+1223,Mexico City,Mexico City,Mexico,2023-10-27,Rain
+1223,Mexico City,Mexico City,Mexico,2023-10-28,No Rain
+1223,Mexico City,Mexico City,Mexico,2023-10-29,No Rain
+1224,Interlagos,São Paulo,Brazil,2023-11-03,Rain
+1224,Interlagos,São Paulo,Brazil,2023-11-04,Rain
+1224,Interlagos,São Paulo,Brazil,2023-11-05,Rain
+1225,Las Vegas,Las Vegas,United States,2023-11-17,No Rain
+1225,Las Vegas,Las Vegas,United States,2023-11-18,No Rain
+1225,Las Vegas,Las Vegas,United States,2023-11-19,No Rain
+1226,Yas Marina Circuit,Yas Island,United Arab Emirates,2023-11-24,No Rain
+1226,Yas Marina Circuit,Yas Island,United Arab Emirates,2023-11-25,No Rain
+1226,Yas Marina Circuit,Yas Island,United Arab Emirates,2023-11-26,No Rain
+1229,Sakhir,Sakhir,Bahrain,2024-02-29,No Rain
+1229,Sakhir,Sakhir,Bahrain,2024-03-01,No Rain
+1229,Sakhir,Sakhir,Bahrain,2024-03-02,No Rain
+1230,Jeddah,Jeddah,Saudi Arabia,2024-03-07,No Rain
+1230,Jeddah,Jeddah,Saudi Arabia,2024-03-08,No Rain
+1230,Jeddah,Jeddah,Saudi Arabia,2024-03-09,No Rain
+1231,Melbourne,Melbourne,Australia,2024-03-22,No Rain
+1231,Melbourne,Melbourne,Australia,2024-03-23,Rain
+1231,Melbourne,Melbourne,Australia,2024-03-24,No Rain
+1232,Suzuka,Suzuka,Japan,2024-04-05,Rain
+1232,Suzuka,Suzuka,Japan,2024-04-06,No Rain
+1232,Suzuka,Suzuka,Japan,2024-04-07,No Rain
+1233,Shanghai,Shanghai,China,2024-04-19,Rain
+1233,Shanghai,Shanghai,China,2024-04-20,No Rain
+1233,Shanghai,Shanghai,China,2024-04-21,No Rain
+1234,Miami,Miami,United States,2024-05-03,No Rain
+1234,Miami,Miami,United States,2024-05-04,No Rain
+1234,Miami,Miami,United States,2024-05-05,No Rain
+1235,Imola,Imola,Italy,2024-05-17,No Rain
+1235,Imola,Imola,Italy,2024-05-18,No Rain
+1235,Imola,Imola,Italy,2024-05-19,No Rain
+1236,Monte Carlo,Monaco,Monaco,2024-05-24,Rain
+1236,Monte Carlo,Monaco,Monaco,2024-05-25,No Rain
+1236,Monte Carlo,Monaco,Monaco,2024-05-26,No Rain
+1237,Montreal,Montréal,Canada,2024-06-07,Rain
+1237,Montreal,Montréal,Canada,2024-06-08,Rain
+1237,Montreal,Montréal,Canada,2024-06-09,Rain
+1238,Catalunya,Barcelona,Spain,2024-06-21,No Rain
+1238,Catalunya,Barcelona,Spain,2024-06-22,No Rain
+1238,Catalunya,Barcelona,Spain,2024-06-23,Rain
+1238,Catalunya,Barcelona,Spain,2024-06-28,No Rain
+1239,Spielberg,Spielberg,Austria,2024-06-28,No Rain
+1239,Spielberg,Spielberg,Austria,2024-06-29,No Rain
+1239,Spielberg,Spielberg,Austria,2024-06-30,Rain
+1240,Silverstone,Silverstone,Great Britain,2024-07-05,Rain
+1240,Silverstone,Silverstone,Great Britain,2024-07-06,Rain
+1240,Silverstone,Silverstone,Great Britain,2024-07-07,Rain
+1241,Hungaroring,Budapest,Hungary,2024-07-19,No Rain
+1241,Hungaroring,Budapest,Hungary,2024-07-20,Rain
+1241,Hungaroring,Budapest,Hungary,2024-07-21,No Rain
+1242,Spa-Francorchamps,Spa-Francorchamps,Belgium,2024-07-26,Rain
+1242,Spa-Francorchamps,Spa-Francorchamps,Belgium,2024-07-27,Rain
+1242,Spa-Francorchamps,Spa-Francorchamps,Belgium,2024-07-28,No Rain
+1243,Zandvoort,Zandvoort,Netherlands,2024-08-23,Rain
+1243,Zandvoort,Zandvoort,Netherlands,2024-08-24,Rain
+1243,Zandvoort,Zandvoort,Netherlands,2024-08-25,No Rain
+1244,Monza,Monza,Italy,2024-08-30,No Rain
+1244,Monza,Monza,Italy,2024-08-31,No Rain
+1244,Monza,Monza,Italy,2024-09-01,No Rain
+1245,Baku,Baku,Azerbaijan,2024-09-13,No Rain
+1245,Baku,Baku,Azerbaijan,2024-09-14,Rain
+1245,Baku,Baku,Azerbaijan,2024-09-15,No Rain
+1246,Singapore,Marina Bay,Singapore,2024-09-20,No Rain
+1246,Singapore,Marina Bay,Singapore,2024-09-21,No Rain
+1246,Singapore,Marina Bay,Singapore,2024-09-22,No Rain
+1247,Austin,Austin,United States,2024-10-18,No Rain
+1247,Austin,Austin,United States,2024-10-19,No Rain
+1247,Austin,Austin,United States,2024-10-20,No Rain
+1248,Mexico City,Mexico City,Mexico,2024-10-25,No Rain
+1248,Mexico City,Mexico City,Mexico,2024-10-26,No Rain
+1248,Mexico City,Mexico City,Mexico,2024-10-27,No Rain
+1249,Interlagos,São Paulo,Brazil,2024-11-01,No Rain
+1249,Interlagos,São Paulo,Brazil,2024-11-02,Rain
+1249,Interlagos,São Paulo,Brazil,2024-11-03,Rain
+1250,Las Vegas,Las Vegas,United States,2024-11-22,No Rain
+1250,Las Vegas,Las Vegas,United States,2024-11-23,No Rain
+1250,Las Vegas,Las Vegas,United States,2024-11-24,No Rain
+1250,Las Vegas,Las Vegas,United States,2024-11-29,No Rain
+1251,Lusail,Lusail,Qatar,2024-11-29,No Rain
+1251,Lusail,Lusail,Qatar,2024-11-30,No Rain
+1251,Lusail,Lusail,Qatar,2024-12-01,No Rain
+1252,Yas Marina Circuit,Yas Island,United Arab Emirates,2024-12-06,No Rain
+1252,Yas Marina Circuit,Yas Island,United Arab Emirates,2024-12-07,No Rain
+1252,Yas Marina Circuit,Yas Island,United Arab Emirates,2024-12-08,No Rain
