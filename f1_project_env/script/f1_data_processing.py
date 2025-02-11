@@ -3,6 +3,87 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional
 import os
 
+class F1DriverMapping:
+    """
+    A class to handle F1 driver mappings between different identification systems.
+    Maintains consistency between driver IDs, numbers, and codes.
+    """
+    def __init__(self):
+        # Initialize current drivers mapping
+        self._current_drivers = {
+            'VER': 830, 'PER': 815, 'HAM': 1, 'RUS': 847,
+            'LEC': 844, 'SAI': 832, 'NOR': 846, 'PIA': 857,
+            'ALO': 4, 'STR': 840, 'GAS': 842, 'OCO': 839,
+            'ALB': 848, 'SAR': 858, 'BOT': 822, 'ZHO': 855,
+            'TSU': 852, 'RIC': 817, 'MAG': 825, 'HUL': 807
+        }
+        
+        # Initialize mappings
+        self.driver_mappings = {
+            'id_to_code': {id_: code for code, id_ in self._current_drivers.items()},
+            'number_to_code': {
+                '1': 'VER', '11': 'PER', '44': 'HAM', '63': 'RUS',
+                '16': 'LEC', '55': 'SAI', '4': 'NOR', '81': 'PIA',
+                '14': 'ALO', '18': 'STR', '10': 'GAS', '31': 'OCO',
+                '23': 'ALB', '2': 'SAR', '77': 'BOT', '24': 'ZHO',
+                '22': 'TSU', '3': 'RIC', '20': 'MAG', '27': 'HUL',
+            },
+            'code_to_name': {
+                'VER': 'Max Verstappen', 'PER': 'Sergio Perez',
+                'HAM': 'Lewis Hamilton', 'RUS': 'George Russell',
+                'LEC': 'Charles Leclerc', 'SAI': 'Carlos Sainz',
+                'NOR': 'Lando Norris', 'PIA': 'Oscar Piastri',
+                'ALO': 'Fernando Alonso', 'STR': 'Lance Stroll',
+                'GAS': 'Pierre Gasly', 'OCO': 'Esteban Ocon',
+                'ALB': 'Alexander Albon', 'SAR': 'Logan Sargeant',
+                'BOT': 'Valtteri Bottas', 'ZHO': 'Zhou Guanyu',
+                'TSU': 'Yuki Tsunoda', 'RIC': 'Daniel Ricciardo',
+                'MAG': 'Kevin Magnussen', 'HUL': 'Nico Hulkenberg'
+            }
+        }
+        
+        # Create reverse mappings
+        self.driver_mappings['code_to_id'] = {v: k for k, v in self.driver_mappings['id_to_code'].items()}
+        self.driver_mappings['code_to_number'] = {v: k for k, v in self.driver_mappings['number_to_code'].items()}
+
+    def get_current_driver_ids(self) -> list:
+        """Get list of current driver IDs."""
+        return list(self._current_drivers.values())
+
+    def get_driver_code(self, identifier) -> str:
+        """Get driver code (e.g., 'VER') from either driver ID or number"""
+        if isinstance(identifier, (int, float)):
+            return self.driver_mappings['id_to_code'].get(int(identifier))
+        elif isinstance(identifier, str):
+            if identifier.isdigit():  # Handle number as string
+                return self.driver_mappings['number_to_code'].get(identifier)
+            return identifier if identifier in self.driver_mappings['code_to_name'] else None
+        return None
+
+    def get_driver_id(self, identifier) -> int:
+        """Get driver ID from either driver code or number"""
+        if isinstance(identifier, str):
+            if identifier in self._current_drivers:  # Direct code lookup
+                return self._current_drivers[identifier]
+            elif identifier in self.driver_mappings['number_to_code']:
+                code = self.driver_mappings['number_to_code'][identifier]
+                return self._current_drivers.get(code)
+        return None
+
+    def get_driver_number(self, identifier) -> str:
+        """Get driver number from either driver code or ID"""
+        code = None
+        if isinstance(identifier, str):
+            code = identifier if identifier in self.driver_mappings['code_to_number'] else None
+        elif isinstance(identifier, (int, float)):
+            code = self.driver_mappings['id_to_code'].get(int(identifier))
+        return self.driver_mappings['code_to_number'].get(code) if code else None
+
+    def get_driver_name(self, identifier) -> str:
+        """Get driver full name from code, ID, or number"""
+        code = self.get_driver_code(identifier)
+        return self.driver_mappings['code_to_name'].get(code) if code else None
+    
 class F1DataProcessor:
     """
     Data processor for F1 AlphaZero model that handles data loading, cleaning,
@@ -17,6 +98,7 @@ class F1DataProcessor:
         self.constructor_data = None
         self.state_dim = None
         self.action_dim = None
+        self.driver_mapping = F1DriverMapping()  # Initialize driver mapping
         self._load_and_clean_data()
         
     def _load_kaggle_data(self, file_path: str) -> Optional[pd.DataFrame]:
@@ -60,18 +142,24 @@ class F1DataProcessor:
         self._create_merged_datasets()
         
     def _clean_drivers_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        """Clean the drivers dataset."""
+        """Clean the drivers dataset and add driver codes."""
         if data is not None:
+            data = data.copy()
             columns_to_keep = ["driverId", "number", "forename", "surname"]
             data = data[columns_to_keep]
-            if "number" in data.columns:
-                data = data[data["number"] != "\\N"]
-                data.fillna({"number": "N/A"}, inplace=True)
+
+            # Add driver codes using the mapping
+            data['driverCode'] = data['driverId'].apply(self.driver_mapping.get_driver_code)
+            
+            # Filter for current drivers only
+            data = data[data['driverCode'].notna()]
+
         return data
 
     def _clean_races_data(self, data: pd.DataFrame) -> pd.DataFrame:
         """Clean the races dataset."""
         if data is not None:
+            data = data.copy()
             data = data[data["year"].isin([2021, 2022, 2023, 2024])]
             columns_to_keep = ["raceId", "year", "circuitId", "name"]
             data = data[columns_to_keep]
@@ -135,6 +223,24 @@ class F1DataProcessor:
             weather_mapping = {'No Rain': 0, 'Rain': 1}
             data['weather_numerical'] = data['weather_type'].map(weather_mapping)
         return data
+    
+    def standardize_driver_data(self, df: pd.DataFrame, id_column: str = None) -> pd.DataFrame:
+        """
+        Standardize driver information in a DataFrame using the driver mapping.
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame
+            id_column (str): Name of the column containing driver IDs
+            
+        Returns:
+            pd.DataFrame: DataFrame with standardized driver information
+        """
+        if id_column and id_column in df.columns:
+            df = df.copy()
+            df['DriverCode'] = df[id_column].apply(self.driver_mapping.get_driver_code)
+            df['DriverName'] = df[id_column].apply(self.driver_mapping.get_driver_name)
+            df['DriverNumber'] = df[id_column].apply(self.driver_mapping.get_driver_number)
+        return df
 
     def _validate_numeric_columns(self, df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
         """Validate and convert columns to numeric type."""
@@ -291,18 +397,24 @@ class F1DataProcessor:
                                           self.kaggle_data["constructor_results"],
                                           on=["constructorId", "raceId"], how="inner")
 
-        # Add weather data to race data
+        # Add weather data to race_data - ensure only one weather value per race
         if "weather" in self.kaggle_data and self.race_data is not None:
             # Create a copy of race_data before modifications
             self.race_data = self.race_data.copy()
             
-            # Merge weather data
-            self.race_data = pd.merge(self.race_data, 
-                                    self.kaggle_data["weather"][["raceId", "weather_numerical"]], 
-                                    on="raceId", how="left")
+            # Get unique weather values per race
+            unique_weather = self.kaggle_data["weather"][["raceId", "weather_numerical"]].drop_duplicates("raceId")
             
-            # Fill NA values without using inplace
-            self.race_data["weather_numerical"] = self.race_data["weather_numerical"].fillna(0)  # Default to no rain
+            # Merge weather data
+            self.race_data = pd.merge(
+                self.race_data,
+                unique_weather,
+                on="raceId",
+                how="left"
+            )
+            
+            # Fill NA values
+            self.race_data["weather_numerical"] = self.race_data["weather_numerical"].fillna(0) # Default to no rain
         
         self.filter_races_with_circuit_data()
 
@@ -342,12 +454,32 @@ class F1DataProcessor:
         return state
 
     def _get_driver_features(self, race_info: pd.DataFrame) -> np.ndarray:
-        """Extract and normalize driver-related features."""
-        # Example features: driver position, points, wins
-        features = race_info[['position']].values
-        # Normalize positions to [0,1] range
-        features = features / 20.0  # Assuming max 20 positions
-        return features.flatten()
+        """Extract and normalize driver-related features for current F1 drivers only."""
+        # Get current driver IDs from mapping
+        current_driver_ids = self.driver_mapping.get_current_driver_ids()
+        filtered_race_info = race_info[race_info['driverId'].isin(current_driver_ids)].copy()
+        
+        if filtered_race_info.empty:
+            return np.zeros(len(current_driver_ids))
+            
+        # Sort by driverId to ensure consistent order
+        filtered_race_info = filtered_race_info.sort_values('driverId')
+        
+        # Extract position and normalize
+        positions = filtered_race_info['position'].values
+        normalized_positions = positions / 20.0  # Normalize assuming max 20 positions
+        
+        # Pad array if needed
+        if len(normalized_positions) < len(current_driver_ids):
+            normalized_positions = np.pad(
+                normalized_positions, 
+                (0, len(current_driver_ids) - len(normalized_positions)), 
+                'constant'
+            )
+        elif len(normalized_positions) > len(current_driver_ids):
+            normalized_positions = normalized_positions[:len(current_driver_ids)]
+            
+        return normalized_positions
 
     def _get_constructor_features(self, constructor_info: pd.DataFrame) -> np.ndarray:
         """Extract and normalize constructor-related features."""
@@ -360,41 +492,59 @@ class F1DataProcessor:
         return features.flatten()
 
     def _get_qualifying_features(self, race_info: pd.DataFrame) -> np.ndarray:
-        """Extract and normalize qualifying-related features."""
+        """Extract and normalize qualifying features for current F1 drivers."""
         def convert_time_to_seconds(time_str):
             if pd.isna(time_str) or time_str == 'N/A' or time_str == '\\N':
                 return 0
             try:
                 if isinstance(time_str, str):
-                    # Handle minute:second.millisecond format
                     if ':' in time_str:
                         minutes, rest = time_str.split(':')
-                        seconds = float(minutes) * 60 + float(rest)
-                    else:
-                        seconds = float(time_str)
-                    return seconds
+                        return float(minutes) * 60 + float(rest)
+                    return float(time_str)
                 return float(time_str)
             except (ValueError, TypeError):
                 return 0
 
-        # Convert qualifying times to seconds
-        q_times = pd.DataFrame()
-        for col in ['q1', 'q2', 'q3']:
-            q_times[col] = race_info[col].apply(convert_time_to_seconds)
-
-        # Convert to numpy array and handle normalization
-        q_times_array = q_times.values.astype(float)
+        # Get current driver IDs from mapping
+        current_driver_ids = self.driver_mapping.get_current_driver_ids()
+        filtered_race_info = race_info[race_info['driverId'].isin(current_driver_ids)].copy()
+        
+        # Sort by driverId for consistency
+        filtered_race_info = filtered_race_info.sort_values('driverId')
+        
+        # Initialize qualifying times array
+        q_times = []
+        
+        # Process each current driver
+        for driver_id in current_driver_ids:
+            driver_data = filtered_race_info[filtered_race_info['driverId'] == driver_id]
+            
+            if not driver_data.empty:
+                q1_time = convert_time_to_seconds(driver_data['q1'].iloc[0])
+                q2_time = convert_time_to_seconds(driver_data['q2'].iloc[0])
+                q3_time = convert_time_to_seconds(driver_data['q3'].iloc[0])
+                q_times.extend([q1_time, q2_time, q3_time])
+            else:
+                q_times.extend([0, 0, 0])
+        
+        # Convert to numpy array and normalize
+        q_times_array = np.array(q_times)
         max_time = np.max(q_times_array[q_times_array > 0])
         if max_time > 0:
             q_times_array = np.where(q_times_array > 0, q_times_array / max_time, 0)
-
-        return q_times_array.flatten()
+            
+        return q_times_array
 
     def _get_weather_features(self, race_info: pd.DataFrame) -> np.ndarray:
         """Extract weather features."""
         # Get weather condition (0 for no rain, 1 for rain)
-        weather_features = race_info[['weather_numerical']].values
-        return weather_features.flatten()
+        if race_info.empty or 'weather_numerical' not in race_info.columns:
+            return np.array([0])  # Default to no rain if no data
+        
+        # Take the first weather value since we should only have one per race
+        weather_value = race_info['weather_numerical'].iloc[0]
+        return np.array([weather_value])
 
     def get_action_space(self) -> Dict[str, List[float]]:
         """

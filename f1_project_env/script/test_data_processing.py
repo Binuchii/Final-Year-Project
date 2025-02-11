@@ -1,17 +1,55 @@
-from f1_data_processing import F1DataProcessor, F1Environment
+from f1_data_processing import F1DataProcessor, F1Environment, F1DriverMapping
 import pandas as pd
 import numpy as np
 import os
+
+def test_driver_mapping():
+    """
+    Test the F1DriverMapping functionality.
+    """
+    print("\n=== Test 0: Driver Mapping ===")
+    driver_mapping = F1DriverMapping()
+    
+    # Test driver code retrieval
+    print("\nTesting driver code retrieval:")
+    test_cases = [
+        (830, 'VER'),  # Max Verstappen
+        (1, 'HAM'),    # Lewis Hamilton
+        ('44', 'HAM'), # Hamilton by number
+        ('1', 'VER')   # Verstappen by number
+    ]
+    
+    for input_val, expected in test_cases:
+        result = driver_mapping.get_driver_code(input_val)
+        print(f"Input: {input_val}, Expected: {expected}, Got: {result}")
+        
+    # Test driver name retrieval
+    print("\nTesting driver name retrieval:")
+    test_cases = [
+        (830, 'Max Verstappen'),
+        ('VER', 'Max Verstappen'),
+        ('1', 'Max Verstappen'),
+    ]
+    
+    for input_val, expected in test_cases:
+        result = driver_mapping.get_driver_name(input_val)
+        print(f"Input: {input_val}, Expected: {expected}, Got: {result}")
+    
+    # Test current driver IDs
+    print("\nCurrent driver IDs:")
+    current_ids = driver_mapping.get_current_driver_ids()
+    print(f"Number of current drivers: {len(current_ids)}")
+    print(f"Driver IDs: {current_ids}")
 
 def test_data_processing():
     """
     Test the F1 data processing pipeline and print diagnostic information.
     """
     # Update these paths to your actual data directories
-    data_dir = os.path.join(os.getcwd(), "data")  # or your specific path
-    circuits_folder = os.path.join(os.getcwd(), r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\data\calculated_variables")  # or your specific path
+    data_dir = os.path.join(os.getcwd(), "data")
+    circuits_folder = os.path.join(os.getcwd(), r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\data\calculated_variables")
     
-    print("Initializing F1DataProcessor...")
+    print("\nInitializing F1DataProcessor...")
     processor = F1DataProcessor(data_dir=data_dir, circuits_folder=circuits_folder)
 
     # Test 1: Check if all datasets are loaded
@@ -20,6 +58,19 @@ def test_data_processing():
         if dataset is not None:
             print(f"{dataset_name}: {len(dataset)} rows, {len(dataset.columns)} columns")
             print(f"Columns: {dataset.columns.tolist()}")
+            
+            # For drivers dataset, check driver code mapping
+            if dataset_name == "drivers":
+                print("\nChecking driver code mapping:")
+                current_drivers = processor.driver_mapping.get_current_driver_ids()
+                mapped_drivers = dataset[dataset['driverId'].isin(current_drivers)]
+                print(f"Current drivers found in dataset: {len(mapped_drivers)}")
+                if not mapped_drivers.empty:
+                    print("Sample driver mappings:")
+                    for _, driver in mapped_drivers.head().iterrows():
+                        code = processor.driver_mapping.get_driver_code(driver['driverId'])
+                        name = processor.driver_mapping.get_driver_name(driver['driverId'])
+                        print(f"ID: {driver['driverId']}, Code: {code}, Name: {name}")
         else:
             print(f"{dataset_name}: Failed to load")
 
@@ -29,8 +80,13 @@ def test_data_processing():
         print("\nRace Data:")
         print(f"Shape: {processor.race_data.shape}")
         print(f"Columns: {processor.race_data.columns.tolist()}")
-        print("\nSample row:")
-        print(processor.race_data.iloc[0])
+        print("\nSample row with driver mapping:")
+        sample_row = processor.race_data.iloc[0]
+        print(sample_row)
+        print("\nDriver details for sample row:")
+        driver_id = sample_row['driverId']
+        print(f"Driver Code: {processor.driver_mapping.get_driver_code(driver_id)}")
+        print(f"Driver Name: {processor.driver_mapping.get_driver_name(driver_id)}")
     else:
         print("Race data merge failed")
 
@@ -46,11 +102,44 @@ def test_data_processing():
     # Test 3: Check state representation
     print("\n=== Test 3: State Representation ===")
     try:
-        # Get a sample race_id
         sample_race_id = processor.race_data['raceId'].iloc[0]
         state = processor.get_state_representation(sample_race_id)
         print(f"\nState shape: {state.shape}")
         print(f"State sample: {state[:10]}...")  # Print first 10 elements
+        
+        # Analyze state components
+        print("\nState vector breakdown:")
+        offset = 0
+        
+        # Driver features (20 drivers)
+        driver_features = state[offset:offset+20]
+        print(f"\nDriver features (positions):")
+        for i, pos in enumerate(driver_features):
+            if pos > 0:  # Only show non-zero positions
+                driver_id = processor.driver_mapping.get_current_driver_ids()[i]
+                driver_code = processor.driver_mapping.get_driver_code(driver_id)
+                print(f"{driver_code}: {pos:.3f}")
+        offset += 20
+        
+        # Constructor features
+        constructor_features = state[offset:offset+30]  # Assuming 10 teams × 3 features
+        print(f"\nConstructor features shape: {len(constructor_features)}")
+        offset += 30
+        
+        # Qualifying features (20 drivers × 3 sessions)
+        qualifying_features = state[offset:offset+60]
+        print(f"\nQualifying features shape: {len(qualifying_features)}")
+        offset += 60
+        
+        # Weather feature
+        weather_feature = state[offset:offset+1]
+        print(f"\nWeather feature: {weather_feature[0]}")
+        offset += 1
+        
+        # Circuit features
+        circuit_features = state[offset:]
+        print(f"\nCircuit features: {circuit_features}")
+        
     except Exception as e:
         print(f"State representation test failed: {str(e)}")
 
@@ -61,7 +150,6 @@ def test_data_processing():
         print("\nWeather conditions distribution:")
         print(weather_stats)
         
-        # Check for any missing weather data
         missing_weather = processor.race_data['weather_numerical'].isna().sum()
         print(f"\nMissing weather data points: {missing_weather}")
     else:
@@ -74,7 +162,6 @@ def test_data_processing():
         initial_state = env.reset()
         print(f"\nInitial state shape: {initial_state.shape}")
         
-        # Test environment step
         action = {
             'tire_strategy': 0,
             'pit_stop_timing': 0.5,
@@ -194,8 +281,12 @@ def process_single_circuit(circuit_name, circuit_df):
         gap = driver.TotalTime - fastest_time
         print(f"{driver.Driver:10} +{gap:6.3f}")
 
+
 if __name__ == "__main__":
-    # Initialize processor with just the data directory
+    # Run tests
+    test_driver_mapping()
+    
+    # Initialize processor
     data_dir = r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\data"
     circuits_folder = r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\data\calculated_variables"
     processor = F1DataProcessor(data_dir=data_dir, circuits_folder=circuits_folder)
@@ -203,3 +294,6 @@ if __name__ == "__main__":
     # Run all tests
     test_data_processing()
     test_circuit_data(processor)
+    
+    # Optional: Run detailed analysis for a specific circuit
+    # run_detailed_circuit_analysis(processor, "monza")
