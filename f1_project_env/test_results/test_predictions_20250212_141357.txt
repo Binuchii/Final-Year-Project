@@ -1,0 +1,16 @@
+
+BRITISH Predictions:
+--------------------------------------------------
+Error: Module [SimplifiedF1Net] is missing the required "forward" function
+
+MONACO Predictions:
+--------------------------------------------------
+Error: Module [SimplifiedF1Net] is missing the required "forward" function
+
+BAHRAIN Predictions:
+--------------------------------------------------
+Error: Module [SimplifiedF1Net] is missing the required "forward" function
+
+DUTCH Predictions:
+--------------------------------------------------
+Error: Module [SimplifiedF1Net] is missing the required "forward" function

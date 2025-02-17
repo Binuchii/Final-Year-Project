@@ -1,0 +1,16 @@
+
+BRITISH Predictions:
+--------------------------------------------------
+Error: QualifyingPredictor._process_driver_features() missing 3 required positional arguments: 'qual_data', 'circuit_name', and 'feature_arrays'
+
+MONACO Predictions:
+--------------------------------------------------
+Error: QualifyingPredictor._process_driver_features() missing 3 required positional arguments: 'qual_data', 'circuit_name', and 'feature_arrays'
+
+BAHRAIN Predictions:
+--------------------------------------------------
+Error: QualifyingPredictor._process_driver_features() missing 3 required positional arguments: 'qual_data', 'circuit_name', and 'feature_arrays'
+
+DUTCH Predictions:
+--------------------------------------------------
+Error: QualifyingPredictor._process_driver_features() missing 3 required positional arguments: 'qual_data', 'circuit_name', and 'feature_arrays'

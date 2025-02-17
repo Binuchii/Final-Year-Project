@@ -1,0 +1,16 @@
+
+BRITISH Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_validate_state'
+
+MIAMI Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_validate_state'
+
+BAHRAIN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_validate_state'
+
+DUTCH Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_validate_state'

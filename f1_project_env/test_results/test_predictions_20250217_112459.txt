@@ -1,0 +1,16 @@
+
+BRITISH Predictions:
+--------------------------------------------------
+Error: 'SimplifiedF1Net' object has no attribute 'driver_encoder'
+
+MIAMI Predictions:
+--------------------------------------------------
+Error: 'SimplifiedF1Net' object has no attribute 'driver_encoder'
+
+BAHRAIN Predictions:
+--------------------------------------------------
+Error: 'SimplifiedF1Net' object has no attribute 'driver_encoder'
+
+DUTCH Predictions:
+--------------------------------------------------
+Error: 'SimplifiedF1Net' object has no attribute 'driver_encoder'

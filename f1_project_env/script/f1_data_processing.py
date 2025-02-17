@@ -260,27 +260,60 @@ class F1DataProcessor:
         
         return df
 
+    def validate_circuit_data(self):
+        """
+        Validate circuit data loading and processing.
+        """
+        print("\nValidating circuit data:")
+        print(f"Number of circuits loaded: {len(self.circuits_data)}")
+        
+        for circuit_name, data in self.circuits_data.items():
+            print(f"\nCircuit: {circuit_name}")
+            print(f"Columns: {data.columns.tolist()}")
+            print(f"Number of rows: {len(data)}")
+            
+            # Check sector time columns
+            sector_cols = [col for col in data.columns if 'sector' in col.lower()]
+            if sector_cols:
+                print("\nSector time statistics:")
+                for col in sector_cols:
+                    mean_time = data[col].mean()
+                    std_time = data[col].std()
+                    print(f"{col}:")
+                    print(f"  Mean: {mean_time:.3f}")
+                    print(f"  Std:  {std_time:.3f}")
+            else:
+                print("Warning: No sector time columns found")
+
     def _load_and_clean_circuit_data(self):
-        """Load and clean circuit-specific sector times data."""
+        """
+        Enhanced circuit data loading with validation.
+        """
         try:
+            print("\nLoading circuit data:")
+            print(f"Circuits folder: {self.circuits_folder}")
+            
             for filename in os.listdir(self.circuits_folder):
                 if filename.endswith(".csv"):
-                    # Extract circuit name
                     circuit_name = filename.split(" ")[0].lower()
-                    
-                    # Load the CSV
                     file_path = os.path.join(self.circuits_folder, filename)
+                    
+                    print(f"\nProcessing {filename}:")
                     df = pd.read_csv(file_path)
+                    print(f"Original columns: {df.columns.tolist()}")
+                    print(f"Original shape: {df.shape}")
                     
                     # Clean the data
-                    df = self._clean_circuit_data(df)
+                    cleaned_df = self._clean_circuit_data(df)
+                    print(f"Cleaned shape: {cleaned_df.shape}")
                     
-                    # Store in dictionary
-                    self.circuits_data[circuit_name] = df
+                    self.circuits_data[circuit_name] = cleaned_df
                     
-            print(f"Loaded {len(self.circuits_data)} circuit datasets")
+            # Validate loaded data
+            self.validate_circuit_data()
+            
         except Exception as e:
-            print(f"Error loading circuit data: {e}")
+            print(f"Error loading circuit data: {str(e)}")
 
     def _clean_circuit_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean circuit-specific data."""
@@ -310,68 +343,36 @@ class F1DataProcessor:
         return df
 
     def _get_circuit_features(self, race_info: pd.DataFrame) -> np.ndarray:
-        """Extract circuit-specific features with proper error handling."""
+        """Extract circuit-specific features."""
+        # Initialize 3 features for circuit characteristics
+        features = np.zeros(3)
+        
         try:
             if race_info.empty:
-                print("Warning: Empty race info provided")
-                return np.zeros(3)  # Return default features for empty race info
-                
-            # Get circuit name from race info
-            if 'name' not in race_info.columns:
-                print("Warning: 'name' column not found in race info")
-                return np.zeros(3)
+                return features
                 
             circuit_name = race_info['name'].iloc[0].split(' ')[0].lower()
+            
+            # Handle special circuit names
+            if circuit_name == 'são':
+                circuit_name = 'sao'
+            elif circuit_name == 'méxico':
+                circuit_name = 'mexico'
+            elif circuit_name == 'monaco':
+                circuit_name = 'monte'
             
             if circuit_name in self.circuits_data:
                 circuit_df = self.circuits_data[circuit_name]
                 
-                # Initialize features list with default zeros
-                sector_features = []
-                
-                # Check if we have the normalized columns
-                normalized_cols = ['sector1_normalized', 'sector2_normalized', 'sector3_normalized']
-                if any(col in circuit_df.columns for col in normalized_cols):
-                    # Use normalized columns if they exist
-                    for col in normalized_cols:
-                        if col in circuit_df.columns:
-                            sector_features.append(circuit_df[col].mean())
-                        else:
-                            sector_features.append(0.0)
-                else:
-                    # Fall back to regular sector columns if normalized ones don't exist
-                    regular_cols = ['sector1', 'sector2', 'sector3']
-                    max_sector_time = 0
-                    
-                    # First find max sector time for normalization
-                    for col in regular_cols:
-                        if col in circuit_df.columns:
-                            max_sector_time = max(max_sector_time, circuit_df[col].max())
-                    
-                    # Then normalize and add features
-                    if max_sector_time > 0:
-                        for col in regular_cols:
-                            if col in circuit_df.columns:
-                                sector_features.append(circuit_df[col].mean() / max_sector_time)
-                            else:
-                                sector_features.append(0.0)
-                    else:
-                        sector_features = [0.0, 0.0, 0.0]
-                
-                # Convert to numpy array and ensure we have 3 features
-                features = np.array(sector_features[:3])
-                if len(features) < 3:
-                    features = np.pad(features, (0, 3 - len(features)), 'constant')
-                    
-                return features
-                
-            else:
-                print(f"Warning: Circuit '{circuit_name}' not found in circuits data")
-                return np.zeros(3)
-                
+                # Get normalized sector times
+                for i, col in enumerate(['sector1_normalized', 'sector2_normalized', 'sector3_normalized']):
+                    if col in circuit_df.columns:
+                        features[i] = circuit_df[col].mean()
+        
         except Exception as e:
-            print(f"Error getting circuit features: {str(e)}")
-            return np.zeros(3)  # Return default features on error
+            print(f"Error processing circuit features: {str(e)}")
+        
+        return features
         
     def _create_merged_datasets(self):
         """Create merged datasets with proper DataFrame operations."""
@@ -420,18 +421,64 @@ class F1DataProcessor:
 
     def get_state_representation(self, race_id: int) -> np.ndarray:
         """
-        Create a state representation for the AlphaZero model for a given race.
-        Returns a numpy array representing the current state.
+        Create a state representation with detailed dimension checking.
         """
         race_info = self.race_data[self.race_data['raceId'] == race_id]
         constructor_info = self.constructor_data[self.constructor_data['raceId'] == race_id]
         
-        # Create feature vectors
+        # Get each feature vector with dimension checking
         driver_features = self._get_driver_features(race_info)
+        print(f"Driver features shape: {driver_features.shape}, Expected: (20,)")
+        
         constructor_features = self._get_constructor_features(constructor_info)
+        print(f"Constructor features shape: {constructor_features.shape}, Expected: (30,)")
+        
         qualifying_features = self._get_qualifying_features(race_info)
+        print(f"Qualifying features shape: {qualifying_features.shape}, Expected: (60,)")
+        
         weather_features = self._get_weather_features(race_info)
+        print(f"Weather features shape: {weather_features.shape}, Expected: (1,)")
+        
         circuit_features = self._get_circuit_features(race_info)
+        print(f"Circuit features shape: {circuit_features.shape}, Expected: (3,)")
+        
+        # Verify each component before concatenation
+        expected_sizes = {
+            'driver': 20,
+            'constructor': 30,
+            'qualifying': 60,
+            'weather': 1,
+            'circuit': 3
+        }
+        
+        # Force correct dimensions if needed
+        if len(driver_features) != expected_sizes['driver']:
+            print(f"WARNING: Padding driver features from {len(driver_features)} to {expected_sizes['driver']}")
+            driver_features = np.pad(driver_features, 
+                                (0, expected_sizes['driver'] - len(driver_features)), 
+                                'constant')
+        
+        if len(constructor_features) != expected_sizes['constructor']:
+            print(f"WARNING: Padding constructor features from {len(constructor_features)} to {expected_sizes['constructor']}")
+            constructor_features = np.pad(constructor_features, 
+                                        (0, expected_sizes['constructor'] - len(constructor_features)), 
+                                        'constant')
+        
+        if len(qualifying_features) != expected_sizes['qualifying']:
+            print(f"WARNING: Padding qualifying features from {len(qualifying_features)} to {expected_sizes['qualifying']}")
+            qualifying_features = np.pad(qualifying_features, 
+                                    (0, expected_sizes['qualifying'] - len(qualifying_features)), 
+                                    'constant')
+        
+        if len(weather_features) != expected_sizes['weather']:
+            print(f"WARNING: Adjusting weather features from {len(weather_features)} to {expected_sizes['weather']}")
+            weather_features = weather_features[:expected_sizes['weather']]
+        
+        if len(circuit_features) != expected_sizes['circuit']:
+            print(f"WARNING: Padding circuit features from {len(circuit_features)} to {expected_sizes['circuit']}")
+            circuit_features = np.pad(circuit_features, 
+                                    (0, expected_sizes['circuit'] - len(circuit_features)), 
+                                    'constant')
         
         # Combine all features into state representation
         state = np.concatenate([
@@ -442,109 +489,105 @@ class F1DataProcessor:
             circuit_features
         ])
         
-        # Print feature dimensions for debugging
-        print("\nState vector composition:")
-        print(f"Driver features: {len(driver_features)}")
-        print(f"Constructor features: {len(constructor_features)}")
-        print(f"Qualifying features: {len(qualifying_features)}")
-        print(f"Weather features: {len(weather_features)}")
-        print(f"Circuit features: {len(circuit_features)}")
-        print(f"Total state size: {len(state)}")
+        print(f"\nFinal state shape: {state.shape}, Expected: (114,)")
+        
+        # Verify final size
+        if state.shape[0] != 114:
+            print(f"ERROR: Incorrect state size. Got {state.shape[0]}, expected 114")
+            print("Individual feature sizes:")
+            print(f"- Driver features: {len(driver_features)}")
+            print(f"- Constructor features: {len(constructor_features)}")
+            print(f"- Qualifying features: {len(qualifying_features)}")
+            print(f"- Weather features: {len(weather_features)}")
+            print(f"- Circuit features: {len(circuit_features)}")
         
         return state
 
     def _get_driver_features(self, race_info: pd.DataFrame) -> np.ndarray:
-        """Extract and normalize driver-related features for current F1 drivers only."""
+        """Extract and normalize driver-related features."""
         # Get current driver IDs from mapping
         current_driver_ids = self.driver_mapping.get_current_driver_ids()
-        filtered_race_info = race_info[race_info['driverId'].isin(current_driver_ids)].copy()
+        features = np.zeros((len(current_driver_ids)))  # One feature per driver
         
-        if filtered_race_info.empty:
-            return np.zeros(len(current_driver_ids))
-            
-        # Sort by driverId to ensure consistent order
-        filtered_race_info = filtered_race_info.sort_values('driverId')
+        for idx, driver_id in enumerate(current_driver_ids):
+            driver_data = race_info[race_info['driverId'] == driver_id]
+            if not driver_data.empty:
+                position = driver_data['position'].iloc[0]
+                features[idx] = 1 - (position - 1) / 20  # Normalize position to [0,1]
         
-        # Extract position and normalize
-        positions = filtered_race_info['position'].values
-        normalized_positions = positions / 20.0  # Normalize assuming max 20 positions
-        
-        # Pad array if needed
-        if len(normalized_positions) < len(current_driver_ids):
-            normalized_positions = np.pad(
-                normalized_positions, 
-                (0, len(current_driver_ids) - len(normalized_positions)), 
-                'constant'
-            )
-        elif len(normalized_positions) > len(current_driver_ids):
-            normalized_positions = normalized_positions[:len(current_driver_ids)]
-            
-        return normalized_positions
+        return features
 
     def _get_constructor_features(self, constructor_info: pd.DataFrame) -> np.ndarray:
         """Extract and normalize constructor-related features."""
-        # Example features: constructor points, position, wins
-        features = constructor_info[['constructor_points', 'position', 'wins']].values
-        # Normalize features
-        features[:, 0] = features[:, 0] / features[:, 0].max()  # points
-        features[:, 1] = features[:, 1] / 10.0  # position (assuming 10 teams)
-        features[:, 2] = features[:, 2] / features[:, 2].max()  # wins
-        return features.flatten()
+        # Initialize features for 10 constructors, 3 features each
+        features = np.zeros(30)  # 10 constructors * 3 features
+        
+        if not constructor_info.empty:
+            for idx, (_, row) in enumerate(constructor_info.iterrows()):
+                if idx >= 10:  # Limit to 10 constructors
+                    break
+                    
+                base_idx = idx * 3
+                # Normalize features
+                features[base_idx] = row['constructor_points'] / max(row['constructor_points'], 1)
+                features[base_idx + 1] = 1 - (row['position'] - 1) / 10  # Normalize position
+                features[base_idx + 2] = row['wins'] / max(row['wins'], 1)
+        
+        return features
 
     def _get_qualifying_features(self, race_info: pd.DataFrame) -> np.ndarray:
-        """Extract and normalize qualifying features for current F1 drivers."""
-        def convert_time_to_seconds(time_str):
-            if pd.isna(time_str) or time_str == 'N/A' or time_str == '\\N':
-                return 0
-            try:
-                if isinstance(time_str, str):
-                    if ':' in time_str:
-                        minutes, rest = time_str.split(':')
-                        return float(minutes) * 60 + float(rest)
-                    return float(time_str)
-                return float(time_str)
-            except (ValueError, TypeError):
-                return 0
-
-        # Get current driver IDs from mapping
+        """Extract and normalize qualifying features."""
+        # Initialize features for 20 drivers, 3 qualifying sessions each
+        features = np.zeros(60)  # 20 drivers * 3 sessions
+        
         current_driver_ids = self.driver_mapping.get_current_driver_ids()
-        filtered_race_info = race_info[race_info['driverId'].isin(current_driver_ids)].copy()
         
-        # Sort by driverId for consistency
-        filtered_race_info = filtered_race_info.sort_values('driverId')
-        
-        # Initialize qualifying times array
-        q_times = []
-        
-        # Process each current driver
-        for driver_id in current_driver_ids:
-            driver_data = filtered_race_info[filtered_race_info['driverId'] == driver_id]
-            
+        for idx, driver_id in enumerate(current_driver_ids):
+            driver_data = race_info[race_info['driverId'] == driver_id]
             if not driver_data.empty:
-                q1_time = convert_time_to_seconds(driver_data['q1'].iloc[0])
-                q2_time = convert_time_to_seconds(driver_data['q2'].iloc[0])
-                q3_time = convert_time_to_seconds(driver_data['q3'].iloc[0])
-                q_times.extend([q1_time, q2_time, q3_time])
-            else:
-                q_times.extend([0, 0, 0])
+                base_idx = idx * 3
+                
+                # Process Q1, Q2, Q3 times
+                for q_idx, session in enumerate(['q1', 'q2', 'q3']):
+                    time_str = driver_data[session].iloc[0]
+                    time_secs = self._parse_qualifying_time(time_str)
+                    if time_secs > 0:
+                        features[base_idx + q_idx] = time_secs
         
-        # Convert to numpy array and normalize
-        q_times_array = np.array(q_times)
-        max_time = np.max(q_times_array[q_times_array > 0])
-        if max_time > 0:
-            q_times_array = np.where(q_times_array > 0, q_times_array / max_time, 0)
+        # Normalize all non-zero times
+        non_zero_mask = features > 0
+        if non_zero_mask.any():
+            max_time = np.max(features[non_zero_mask])
+            features[non_zero_mask] = features[non_zero_mask] / max_time
+        
+        return features
+    
+    def _parse_qualifying_time(self, time_str: str) -> float:
+        """Parse qualifying time string to seconds."""
+        if pd.isna(time_str) or time_str == 'N/A' or time_str == '\\N':
+            return 0.0
             
-        return q_times_array
+        try:
+            if isinstance(time_str, str):
+                if ':' in time_str:
+                    minutes, seconds = time_str.split(':')
+                    return float(minutes) * 60 + float(seconds)
+                return float(time_str)
+            elif isinstance(time_str, (int, float)):
+                return float(time_str)
+        except (ValueError, TypeError):
+            return 0.0
+        
+        return 0.0
 
     def _get_weather_features(self, race_info: pd.DataFrame) -> np.ndarray:
         """Extract weather features."""
-        # Get weather condition (0 for no rain, 1 for rain)
+        # Single weather feature
         if race_info.empty or 'weather_numerical' not in race_info.columns:
-            return np.array([0])  # Default to no rain if no data
+            return np.array([0.0])
         
-        # Take the first weather value since we should only have one per race
         weather_value = race_info['weather_numerical'].iloc[0]
-        return np.array([weather_value])
+        return np.array([float(weather_value)])
 
     def get_action_space(self) -> Dict[str, List[float]]:
         """
@@ -625,12 +668,29 @@ class F1DataProcessor:
 
 class F1Environment:
     """
-    F1 racing environment for AlphaZero training.
+    F1 racing environment for AlphaZero training with proper position and points tracking.
     """
     def __init__(self, data_processor: F1DataProcessor):
         self.data_processor = data_processor
         self.current_race_id = None
         self.current_state = None
+        self.current_position = None
+        self.lap_number = 0
+        self.max_laps = 50  # Standard F1 race length
+        
+        # F1 points system as shown in the image
+        self.points_system = {
+            1: 25,  # 1st place
+            2: 18,  # 2nd place
+            3: 15,  # 3rd place
+            4: 12,  # 4th place
+            5: 10,  # 5th place
+            6: 8,   # 6th place
+            7: 6,   # 7th place
+            8: 4,   # 8th place
+            9: 2,   # 9th place
+            10: 1   # 10th place
+        }
         
     def reset(self, race_id: Optional[int] = None) -> np.ndarray:
         """Reset the environment to start a new episode."""
@@ -641,6 +701,10 @@ class F1Environment:
             
         self.current_race_id = race_id
         self.current_state = self.data_processor.get_state_representation(race_id)
+        self.current_position = np.random.randint(1, 21)  # Random starting position
+        self.lap_number = 0
+        
+        print(f"Starting new race (ID: {race_id}) from position {self.current_position}")
         return self.current_state
         
     def step(self, action: Dict[str, float]) -> Tuple[np.ndarray, float, bool, Dict]:
@@ -653,20 +717,31 @@ class F1Environment:
             if not isinstance(action, dict):
                 raise ValueError("Action must be a dictionary")
             
+            # Update lap counter
+            self.lap_number += 1
+            
+            # Simulate position changes based on actions
+            position_change = self._simulate_position_change(action)
+            new_position = max(1, min(20, self.current_position + position_change))
+            
+            # Calculate reward based on new position (strictly points-based)
+            reward = self._calculate_reward(new_position)
+            
+            # Update current position
+            self.current_position = new_position
+            
             # Simulate the effect of actions on the race
             next_state = self._simulate_race_step(action)
-            
-            # Get the current position and calculate reward
-            current_position = self._get_current_position()
-            reward = self.data_processor.get_reward(self.current_race_id, current_position)
             
             # Check if race is finished
             done = self._is_race_finished()
             
-            # Additional info with error handling
+            # Additional info
             info = {
-                'position': current_position,
+                'position': self.current_position,
                 'race_id': self.current_race_id,
+                'lap': self.lap_number,
+                'points': reward,  # Add points to info for clarity
                 'weather_condition': self._get_weather_condition()
             }
             
@@ -675,32 +750,83 @@ class F1Environment:
             
         except Exception as e:
             print(f"Warning: Error in environment step: {e}")
-            # Return safe default values
             return self.current_state, 0.0, True, {
-                'position': 0,
+                'position': self.current_position,
                 'race_id': self.current_race_id,
                 'weather_condition': 'No Rain',
                 'error': str(e)
             }
     
+    def _simulate_position_change(self, action: Dict[str, float]) -> int:
+        """
+        Simulate how actions affect position changes.
+        Returns the change in position (positive means losing positions, negative means gaining positions)
+        """
+        # Extract relevant action components
+        tire_strategy = action.get('tire_strategy', 0)
+        fuel_mode = action.get('fuel_mode', 0)
+        ers_deployment = action.get('ers_deployment', 0)
+        wet_setup = action.get('wet_weather_setup', 0)
+        
+        # Calculate base position change
+        position_change = 0
+        
+        # Get current weather condition
+        weather = self._get_weather_condition()
+        
+        # Tire strategy effect
+        if tire_strategy >= 3:  # Aggressive strategy
+            if weather == 'Rain' and wet_setup == 0:
+                position_change += np.random.choice([1, 2])  # Risky in wet conditions without wet setup
+            else:
+                position_change += np.random.choice([-2, -1, 1])  # High risk, high reward
+        else:  # Conservative strategy
+            position_change += np.random.choice([-1, 0, 1])  # More stable
+            
+        # Fuel mode effect
+        if fuel_mode >= 6:  # High power mode
+            position_change += np.random.choice([-1, 0])
+        elif fuel_mode <= 2:  # Conservation mode
+            position_change += np.random.choice([0, 1])
+            
+        # ERS deployment effect
+        if ers_deployment > 0.8:  # Aggressive ERS use
+            position_change += np.random.choice([-1, 0])
+        
+        # Ensure we don't make impossible position changes
+        max_possible_gain = self.current_position - 1  # Can't go higher than 1st
+        max_possible_loss = 20 - self.current_position  # Can't go lower than 20th
+        
+        return np.clip(position_change, -max_possible_gain, max_possible_loss)
+    
+    def _calculate_reward(self, position: int) -> float:
+        """
+        Calculate reward based strictly on the F1 points system.
+        Points system:
+            1st: 25 points
+            2nd: 18 points
+            3rd: 15 points
+            4th: 12 points
+            5th: 10 points
+            6th: 8 points
+            7th: 6 points
+            8th: 4 points
+            9th: 2 points
+            10th: 1 point
+            11th-20th: 0 points
+        """
+        # Return only the points for the current position
+        return self.points_system.get(position, 0)
+    
     def _simulate_race_step(self, action: Dict[str, float]) -> np.ndarray:
         """Simulate the effect of actions on the race state."""
-        # Implementation would depend on specific racing simulation logic
-        # This is a placeholder that returns the current state
+        # For now, return current state but this could be enhanced
         return self.current_state
         
-    def _get_current_position(self) -> int:
-        """Get the current race position."""
-        # Implementation would depend on how position is tracked
-        # This is a placeholder
-        return 1
-        
     def _is_race_finished(self) -> bool:
-        """Check if the race is finished."""
-        # Implementation would depend on race completion criteria
-        # This is a placeholder
-        return False
-
+        """Check if the race is finished based on lap number."""
+        return self.lap_number >= self.max_laps
+        
     def _get_weather_condition(self) -> str:
         """Get the current weather condition for the race."""
         try:
@@ -708,10 +834,9 @@ class F1Environment:
                 self.data_processor.race_data['raceId'] == self.current_race_id
             ]
             if not race_info.empty and 'weather_numerical' in race_info.columns:
-                # Convert numerical weather back to string representation
                 weather_value = race_info['weather_numerical'].iloc[0]
                 return 'Rain' if weather_value == 1 else 'No Rain'
-            return 'No Rain'  # Default value if no weather data is found
+            return 'No Rain'
         except Exception as e:
             print(f"Warning: Could not get weather condition: {e}")
             return 'No Rain'
