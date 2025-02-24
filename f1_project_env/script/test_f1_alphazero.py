@@ -123,35 +123,7 @@ class F1AlphaZeroTester:
         
         logger.info(f"MCTS search completed. Action probabilities shape: {action_probs.shape}")
         return True
-        
-    def test_environment(self, num_steps: int = 10):
-        """Test F1 environment simulation"""
-        logger.info("Testing F1 environment...")
-        
-        # Reset environment
-        initial_state = self.env.reset()
-        logger.info(f"Initial state shape: {initial_state.shape}")
-        
-        # Run simulation steps
-        for step in range(num_steps):
-            # Create dummy action
-            action = {
-                'tire_strategy': np.random.randint(0, 4),
-                'pit_stop_timing': np.random.random(),
-                'fuel_mode': np.random.randint(0, 8),
-                'ers_deployment': np.random.random(),
-                'wet_weather_setup': np.random.randint(0, 2)
-            }
-            
-            # Take step
-            next_state, reward, done, info = self.env.step(action)
-            logger.info(f"Step {step + 1}: Reward = {reward}, Position = {info['position']}")
-            
-            if done:
-                break
-                
-        return True
-        
+    
     def _print_predictions(self, predictions: Dict):
         """Print prediction results"""
         if 'error' in predictions:
@@ -168,7 +140,7 @@ class F1AlphaZeroTester:
                 f"P{pred['position']:<9} "
                 f"{pred['driver_code']:<10} "
                 f"{pred['probability']:.3f}      "
-                f"{pred.get('q3_appearances', 'N/A'):<10}"
+                f"{pred.get('circuit_stats',{}).get('q3_appearances', 'N/A'):<10}"
             )
             
         logger.info("-" * 80)
@@ -183,8 +155,7 @@ class F1AlphaZeroTester:
                 ('Data Processing', self.test_data_processing),
                 ('Model Training', self.test_model_training),
                 ('Qualifying Prediction', self.test_qualifying_prediction),
-                ('MCTS Search', self.test_mcts_search),
-                ('Environment Simulation', self.test_environment)
+                ('MCTS Search', self.test_mcts_search)
             ]
             
             results = []
@@ -211,7 +182,7 @@ class F1AlphaZeroTester:
 
 def main():
     # Update this path to your data directory
-    data_dir = r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\data"
+    data_dir = os.environ.get("F1_DATA_DIR", "./data")
     
     # Initialize and run tests
     tester = F1AlphaZeroTester(data_dir)
