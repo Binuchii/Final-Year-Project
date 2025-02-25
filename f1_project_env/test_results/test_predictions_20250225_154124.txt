@@ -1,0 +1,80 @@
+
+AUSTRALIAN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+AUSTRIAN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+AZERBAIJAN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+BAHRAIN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+BELGIAN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+BRITISH Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+CANADIAN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+CHINESE Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+DUTCH Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+EMILIA ROMAGNA Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+HUNGARIAN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+ITALIAN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+JAPANESE Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+MEXICO CITY Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+MIAMI Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+MONACO Predictions:
+--------------------------------------------------
+Error: No race data found for circuit: monte
+
+SAUDI ARABIAN Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+SINGAPORE Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+SPANISH Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'
+
+UNITED STATES Predictions:
+--------------------------------------------------
+Error: 'QualifyingPredictor' object has no attribute '_process_driver_features'

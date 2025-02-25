@@ -1,11 +1,11 @@
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple
 import math
 import logging
+import pandas as pd
 from dataclasses import dataclass
 from collections import OrderedDict
 
@@ -21,7 +21,7 @@ class MCTSConfig:
     max_cache_size: int = 10000
 
 class MCTSNode:
-    """Node in the MCTS tree with simplified structure"""
+    """Node in the MCTS tree"""
     def __init__(self, prior: float, state: Optional[np.ndarray] = None):
         self.visit_count = 0
         self.value_sum = 0
@@ -33,12 +33,10 @@ class MCTSNode:
         return len(self.children) > 0
     
     def value(self) -> float:
-        if self.visit_count == 0:
-            return 0
-        return self.value_sum / self.visit_count
+        return self.value_sum / self.visit_count if self.visit_count > 0 else 0
 
 class MCTS:
-    """Simplified Monte Carlo Tree Search implementation"""
+    """Monte Carlo Tree Search implementation"""
     def __init__(self, model: 'SimplifiedF1Net', config: MCTSConfig):
         self.model = model
         self.config = config
@@ -47,10 +45,8 @@ class MCTS:
     
     def search(self, state: np.ndarray) -> np.ndarray:
         """Perform MCTS search"""
-        # Convert to tensor and add batch dimension if needed
-        state_tensor = torch.FloatTensor(state)
-        if state_tensor.dim() == 1:
-            state_tensor = state_tensor.unsqueeze(0)
+        # Ensure state is a tensor with batch dimension
+        state_tensor = torch.FloatTensor(state).unsqueeze(0)
         
         # Create root node
         self.root = MCTSNode(prior=1.0, state=state)
@@ -70,7 +66,6 @@ class MCTS:
             
             # Expansion and Evaluation
             with torch.no_grad():
-                # Ensure we have a batch dimension but don't use training mode
                 policy, value = self.model(state_tensor)
             
             policy = policy.detach().numpy()[0]
@@ -86,21 +81,13 @@ class MCTS:
     
     def _select_child(self, node: MCTSNode) -> Tuple[int, MCTSNode]:
         """Select child node with highest UCB score"""
-        best_score = float('-inf')
-        best_action = -1
-        best_child = None
-        
-        for action, child in node.children.items():
-            score = self._ucb_score(node, child, self.config.c_puct)
-            if score > best_score:
-                best_score = score
-                best_action = action
-                best_child = child
-                
-        return best_action, best_child
+        return max(
+            node.children.items(), 
+            key=lambda x: self._ucb_score(node, x[1], self.config.c_puct)
+        )
     
     def _ucb_score(self, parent: MCTSNode, child: MCTSNode, c_puct: float) -> float:
-        """Calculate UCB score with increased exploration"""
+        """Calculate UCB score with exploration bonus"""
         prior_score = c_puct * child.prior * math.sqrt(parent.visit_count) / (1 + child.visit_count)
         value_score = -child.value()  # Negative because we want to minimize position
         
@@ -123,25 +110,21 @@ class MCTS:
     
     def _get_action_probs(self, root: MCTSNode) -> np.ndarray:
         """Get action probabilities based on visit counts"""
-        visits = np.zeros(20)
-        for action, child in root.children.items():
-            visits[action] = child.visit_count
+        visits = np.array([child.visit_count for child in root.children.values()])
         
-        if visits.sum() > 0:
-            probs = visits / visits.sum()
-        else:
-            probs = np.ones(20) / 20
-        return probs
+        return visits / visits.sum() if visits.sum() > 0 else np.ones(20) / 20
 
 class ModelConfig:
     """Configuration for neural network architecture"""
     def __init__(self):
-        # Update sizes to match actual feature dimensions
+        # Feature dimensions
         self.driver_features = 20
         self.constructor_features = 30
-        self.qualifying_features = 60  # 20 drivers * 3 qualifying sessions
+        self.qualifying_features = 60
         self.weather_features = 1
         self.circuit_features = 3
+        
+        # Total state size
         self.state_size = (
             self.driver_features + 
             self.constructor_features + 
@@ -149,6 +132,8 @@ class ModelConfig:
             self.weather_features + 
             self.circuit_features
         )  # Total: 114
+        
+        # Network hyperparameters
         self.hidden_size = 64
         self.dropout_rate = 0.2
         self.attention_heads = 4
@@ -158,7 +143,7 @@ class SimplifiedF1Net(nn.Module):
         super(SimplifiedF1Net, self).__init__()
         self.config = config
         
-        # Feature encoders with circuit-specific attention
+        # Feature encoders
         self.driver_encoder = self._create_encoder(
             config.driver_features, 
             config.hidden_size
@@ -172,7 +157,7 @@ class SimplifiedF1Net(nn.Module):
             config.hidden_size
         )
         
-        # Special circuit encoder with increased capacity
+        # Circuit encoder
         self.circuit_encoder = nn.Sequential(
             nn.Linear(config.circuit_features, config.hidden_size),
             nn.ReLU(),
@@ -184,11 +169,11 @@ class SimplifiedF1Net(nn.Module):
         
         # Circuit-aware attention mechanism
         self.circuit_attention = nn.Sequential(
-            nn.Linear(config.hidden_size, 3),  # 3 attention weights for each feature type
+            nn.Linear(config.hidden_size, 3),
             nn.Softmax(dim=-1)
         )
         
-        # Main network layers with circuit modulation
+        # Main network layers
         combined_size = config.hidden_size * 4 + config.weather_features
         
         self.main_network = nn.Sequential(
@@ -201,17 +186,16 @@ class SimplifiedF1Net(nn.Module):
             nn.BatchNorm1d(config.hidden_size)
         )
         
-        # Policy head with reduced temperature
+        # Policy and value heads
         self.policy_head = nn.Sequential(
             nn.Linear(config.hidden_size, config.hidden_size // 2),
             nn.ReLU(),
             nn.BatchNorm1d(config.hidden_size // 2),
             nn.Dropout(config.dropout_rate),
-            nn.Linear(config.hidden_size // 2, 20),  # 20 possible positions
+            nn.Linear(config.hidden_size // 2, 20),
             nn.Softmax(dim=-1)
         )
         
-        # Value head
         self.value_head = nn.Sequential(
             nn.Linear(config.hidden_size, config.hidden_size // 2),
             nn.ReLU(),
@@ -222,7 +206,7 @@ class SimplifiedF1Net(nn.Module):
         )
     
     def _create_encoder(self, input_size: int, output_size: int) -> nn.Sequential:
-        """Create an encoder block with proper regularization"""
+        """Create an encoder block with regularization"""
         return nn.Sequential(
             nn.Linear(input_size, output_size),
             nn.ReLU(),
@@ -268,41 +252,33 @@ class SimplifiedF1Net(nn.Module):
         # Process through main network
         features = self.main_network(combined)
         
-        # Generate outputs with raw logits
+        # Generate outputs
         policy_logits = self.policy_head(features)
         value = self.value_head(features)
         
         return policy_logits, value
 
 def convert_time_to_seconds(time_str: str) -> Optional[float]:
-    """Helper method to convert qualifying time to seconds."""
-    if pd.isna(time_str) or time_str == 'N/A' or time_str == '\\N':
+    """Convert qualifying time to seconds with robust parsing."""
+    if not isinstance(time_str, (str, int, float)) or pd.isna(time_str):
         return None
         
     try:
+        # Remove whitespace
         if isinstance(time_str, str):
-            # Remove any whitespace
             time_str = time_str.strip()
-            
-            if ':' in time_str:
-                # Format: "1:23.456"
-                minutes, seconds = time_str.split(':')
-                total_seconds = float(minutes) * 60 + float(seconds)
-            else:
-                # Format: "83.456"
-                total_seconds = float(time_str)
-            
-            # Validate the time is reasonable (between 30 seconds and 3 minutes)
-            if 30 <= total_seconds <= 180:
-                return total_seconds
-                
-        elif isinstance(time_str, (int, float)):
-            # Direct numeric input
+        
+        # Handle different time formats
+        if isinstance(time_str, str) and ':' in time_str:
+            # Format: "1:23.456"
+            minutes, seconds = time_str.split(':')
+            total_seconds = float(minutes) * 60 + float(seconds)
+        else:
+            # Direct numeric input or simple time format
             total_seconds = float(time_str)
-            if 30 <= total_seconds <= 180:
-                return total_seconds
-                
-        return None
+        
+        # Validate reasonable time range (30 to 180 seconds)
+        return total_seconds if 30 <= total_seconds <= 180 else None
             
     except (ValueError, TypeError):
         return None
