@@ -64,23 +64,39 @@ class QualifyingPredictor:
         self._feature_cache = {}
 
     def _create_state(self, circuit_data: pd.DataFrame, circuit_name: str) -> np.ndarray:
-        """Create complete state representation with all required features."""
+        """Create complete state representation with enhanced error handling for Monaco."""
         try:
             logger.info(f"Creating state for circuit: {circuit_name}")
             
             if circuit_data is None or circuit_data.empty:
                 raise ValueError("Invalid circuit data provided")
 
-            # Get race ID for this circuit
+            # Get race ID for this circuit with better error handling for Monaco
             race_ids = self.data_processor.race_data[
-                self.data_processor.race_data['name'].str.contains(circuit_name, case=False)
+                self.data_processor.race_data['name'].str.contains(circuit_name, case=False) |
+                (circuit_name.lower() == 'monaco' and self.data_processor.race_data['name'].str.contains('monte carlo', case=False))
             ]['raceId'].tolist()
 
             if not race_ids:
-                raise ValueError(f"No race data found for circuit: {circuit_name}")
+                # Special case for Monaco
+                if circuit_name.lower() == 'monaco':
+                    # Try a generic approach with Monte Carlo
+                    race_ids = self.data_processor.race_data[
+                        self.data_processor.race_data['name'].str.contains('monte', case=False) |
+                        self.data_processor.race_data['name'].str.contains('monaco', case=False)
+                    ]['raceId'].tolist()
+                    
+                    if not race_ids:
+                        # If still no results, use a fallback race ID
+                        most_recent_race_id = self.data_processor.race_data['raceId'].max()
+                        race_ids = [most_recent_race_id]
+                        logger.warning(f"No specific race data found for Monaco, using fallback race ID: {most_recent_race_id}")
+                else:
+                    raise ValueError(f"No race data found for circuit: {circuit_name}")
 
             # Use the most recent race ID for this circuit
             race_id = max(race_ids)
+            logger.info(f"Using race ID {race_id} for circuit: {circuit_name}")
 
             # Get race and constructor info
             race_info = self.data_processor.race_data[self.data_processor.race_data['raceId'] == race_id]
@@ -121,15 +137,60 @@ class QualifyingPredictor:
     
     def predict_qualifying(self, circuit_name: str) -> Dict:
         """
-        Predict qualifying with enhanced circuit-specific processing.
+        Predict qualifying with more balanced distributions.
+        Modified to better reflect 2023-2024 F1 performance with more realistic spread.
         """
         try:
             logger.info(f"Predicting qualifying for circuit: {circuit_name}")
             
-            # Get circuit data
-            circuit_data = self.data_processor.circuits_data.get(circuit_name.lower())
+            # Get all available circuit keys
+            available_circuits = sorted(self.data_processor.circuits_data.keys())
+            
+            # Convert to standardized name
+            standardized_name = self.get_standardized_circuit_name(circuit_name)
+            logger.info(f"Standardized circuit name: '{circuit_name}' -> '{standardized_name}'")
+            
+            # Get circuit data with standardized name
+            circuit_data = self.data_processor.circuits_data.get(standardized_name.lower())
+            
+            # If not found directly, try to find partial matches
             if circuit_data is None:
-                raise ValueError(f"No data found for circuit: {circuit_name}")
+                # First try more advanced partial matching
+                best_match = None
+                best_score = 0
+                
+                for key in available_circuits:
+                    # Simple matching score based on shared characters
+                    # This could be improved with more sophisticated string matching algorithms
+                    circuit_lower = circuit_name.lower()
+                    key_lower = key.lower()
+                    
+                    # Check for direct substring matches first
+                    if key_lower in circuit_lower or circuit_lower in key_lower:
+                        score = min(len(key_lower), len(circuit_lower))
+                        if score > best_score:
+                            best_score = score
+                            best_match = key
+                            
+                    # Otherwise calculate character overlap
+                    else:
+                        # Count common characters (simple approximation)
+                        common_chars = set(circuit_lower) & set(key_lower)
+                        score = len(common_chars)
+                        if score > best_score:
+                            best_score = score
+                            best_match = key
+                
+                if best_match and best_score > 3:  # Threshold to avoid spurious matches
+                    logger.info(f"Found alternative match: '{best_match}' (score: {best_score})")
+                    standardized_name = best_match
+                    circuit_data = self.data_processor.circuits_data[best_match]
+            
+            if circuit_data is None:
+                # Log available circuits for diagnostics
+                logger.error(f"No data found for circuit: {circuit_name} (standardized: {standardized_name})")
+                logger.error(f"Available circuits: {available_circuits}")
+                return {"error": f"No data found for circuit: {circuit_name}. Available circuits: {', '.join(available_circuits[:5])}..."}
             
             # Create state representation
             state = self._create_state(circuit_data, circuit_name)
@@ -161,9 +222,8 @@ class QualifyingPredictor:
                 state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
                 policy, value = self.model(state_tensor)
                 
-                # APPROACH #1 & #4: Apply adjusted temperature based on circuit characteristics
-                # Make base temperature more aggressive (lower)
-                base_temperature = 0.1  # Changed from 0.3 to 0.1 for more peaked distribution
+                # REBALANCED: More moderate temperature scaling
+                base_temperature = 0.2  # Increased from 0.08 to 0.2 for less peaked distribution
                 circuit_scaling = self._get_circuit_scaling(circuit_name)
                 temperature = base_temperature / circuit_scaling
                 
@@ -171,59 +231,38 @@ class QualifyingPredictor:
                 scaled_policy = policy / temperature
                 action_probs = F.softmax(scaled_policy, dim=1).cpu().numpy()[0]
                 
-                # Instead of small noise, add position-biased noise to favor better positions
-                position_bias = np.array([(20-i)/20 for i in range(20)]) * 0.05
+                # Add position-biased noise to favor better positions
+                position_bias = np.array([(20-i)/20 for i in range(20)]) * 0.03  # Reduced from 0.05
                 action_probs = action_probs + position_bias
+
+                # Apply updated team recency bias
+                action_probs = self._apply_team_recency_bias(action_probs)
                 
                 circuit_type = self._get_circuit_type(circuit_name)
                 driver_ids = self.data_processor.driver_mapping.get_current_driver_ids()
 
-                # Adjust probability distribution based on circuit type
+                # REBALANCED: Circuit type preferences with more balanced distribution
                 for idx, driver_id in enumerate(driver_ids):
                     if idx < len(action_probs):
                         driver_code = self.data_processor.driver_mapping.get_driver_code(driver_id)
                         
-                        # Circuit type preferences - comprehensive for all drivers
+                        # More balanced circuit type preferences
                         driver_circuit_preferences = {
                             # Red Bull
-                            'VER': {'high_speed': 1.4, 'technical': 1.1, 'street': 0.9},
-                            'PER': {'high_speed': 0.9, 'technical': 0.9, 'street': 1.5},
+                            'VER': {'high_speed': 1.3, 'technical': 1.2, 'street': 1.1},
+                            'PER': {'high_speed': 0.9, 'technical': 0.9, 'street': 1.3},
                             
                             # Ferrari
-                            'LEC': {'high_speed': 1.1, 'technical': 1.2, 'street': 1.5},
-                            'SAI': {'high_speed': 1.2, 'technical': 1.3, 'street': 1.1},
+                            'LEC': {'high_speed': 1.1, 'technical': 1.2, 'street': 1.3},
+                            'SAI': {'high_speed': 1.2, 'technical': 1.2, 'street': 1.1},
                             
                             # Mercedes
-                            'HAM': {'high_speed': 1.3, 'technical': 1.4, 'street': 1.0},
-                            'RUS': {'high_speed': 1.2, 'technical': 1.3, 'street': 1.2},
+                            'HAM': {'high_speed': 1.1, 'technical': 1.2, 'street': 1.0},
+                            'RUS': {'high_speed': 1.1, 'technical': 1.2, 'street': 1.1},
                             
                             # McLaren
-                            'NOR': {'high_speed': 1.3, 'technical': 1.2, 'street': 1.2},
-                            'PIA': {'high_speed': 1.2, 'technical': 1.1, 'street': 1.2},
-                            
-                            # Aston Martin
-                            'ALO': {'high_speed': 1.2, 'technical': 1.3, 'street': 1.4},
-                            'STR': {'high_speed': 1.0, 'technical': 0.9, 'street': 1.2},
-                            
-                            # Alpine
-                            'GAS': {'high_speed': 1.1, 'technical': 1.2, 'street': 1.0},
-                            'OCO': {'high_speed': 1.0, 'technical': 1.3, 'street': 1.1},
-                            
-                            # Williams
-                            'ALB': {'high_speed': 1.3, 'technical': 1.0, 'street': 1.2},
-                            'SAR': {'high_speed': 1.1, 'technical': 0.8, 'street': 0.9},
-                            
-                            # RB (AlphaTauri)
-                            'TSU': {'high_speed': 1.0, 'technical': 1.0, 'street': 1.2},
-                            'RIC': {'high_speed': 1.2, 'technical': 1.1, 'street': 1.0},
-                            
-                            # Sauber (Alfa Romeo)
-                            'BOT': {'high_speed': 1.3, 'technical': 1.1, 'street': 0.9},
-                            'ZHO': {'high_speed': 1.0, 'technical': 0.9, 'street': 1.1},
-                            
-                            # Haas
-                            'MAG': {'high_speed': 1.2, 'technical': 1.0, 'street': 1.1},
-                            'HUL': {'high_speed': 1.2, 'technical': 1.1, 'street': 1.0}
+                            'NOR': {'high_speed': 1.3, 'technical': 1.2, 'street': 1.1},
+                            'PIA': {'high_speed': 1.2, 'technical': 1.1, 'street': 1.1},
                         }
                         
                         if driver_code in driver_circuit_preferences and circuit_type in driver_circuit_preferences[driver_code]:
@@ -235,7 +274,7 @@ class QualifyingPredictor:
                 
                 confidence = (value.item() + 1) / 2
             
-            # APPROACH #5: Apply Constructor Weighting
+            # Apply Constructor Weighting
             constructor_strengths = self._get_constructor_strengths()
             for idx, driver_id in enumerate(self.data_processor.driver_mapping.get_current_driver_ids()):
                 if idx < len(action_probs):
@@ -247,7 +286,7 @@ class QualifyingPredictor:
             # Re-normalize
             action_probs = action_probs / np.sum(action_probs)
             
-            # APPROACH #6: Incorporate Recent Form
+            # Apply Recent Form factors
             recent_form_factors = self._calculate_recent_form()
             for idx, driver_id in enumerate(self.data_processor.driver_mapping.get_current_driver_ids()):
                 if idx < len(action_probs):
@@ -257,16 +296,39 @@ class QualifyingPredictor:
             # Re-normalize
             action_probs = action_probs / np.sum(action_probs)
             
-            # APPROACH #7: Add Confidence Amplifier
-            confidence_factor = confidence * 4  # Increased from 2 to 4 for more pronounced effect
+            # REBALANCED: Reduced confidence amplifier
+            confidence_factor = confidence * 2  # Reduced from 4 to 2
             confidence_adjusted_probs = np.power(action_probs, confidence_factor)
             
             # Re-normalize
             action_probs = confidence_adjusted_probs / np.sum(confidence_adjusted_probs)
             
-            # Apply extreme amplification to create greater spread
-            skewed_probs = np.power(action_probs, 3)  # Apply cubic function to increase spread
+            # REBALANCED: Less extreme amplification
+            skewed_probs = np.power(action_probs, 1.5)  # Reduced from 3 to 1.5
             action_probs = skewed_probs / np.sum(skewed_probs)
+            
+            # REBALANCED: Driver-specific 2023-2024 performance boost
+            driver_2024_boost = {
+                'VER': 1.3,  # Max Verstappen
+                'NOR': 1.25, # Lando Norris
+                'PIA': 1.15, # Oscar Piastri
+                'LEC': 1.2,  # Charles Leclerc
+                'SAI': 1.15, # Carlos Sainz
+                'HAM': 1.05, # Lewis Hamilton
+                'RUS': 1.1,  # George Russell
+                'PER': 0.95, # Sergio Perez
+                'ALO': 1.05, # Fernando Alonso
+                'ALB': 1.05, # Alex Albon (Williams performing better)
+            }
+            
+            for idx, driver_id in enumerate(driver_ids):
+                if idx < len(action_probs):
+                    driver_code = self.data_processor.driver_mapping.get_driver_code(driver_id)
+                    if driver_code in driver_2024_boost:
+                        action_probs[idx] *= driver_2024_boost[driver_code]
+            
+            # Re-normalize
+            action_probs = action_probs / np.sum(action_probs)
             
             # Format predictions with detailed driver info
             predictions = self._format_predictions(action_probs, confidence, circuit_name)
@@ -386,43 +448,23 @@ class QualifyingPredictor:
         }
 
     def _get_constructor_strengths(self) -> Dict[int, float]:
-        """Calculate strength factors for each constructor based on performance"""
-        try:
-            strengths = {}
-            constructor_data = self.data_processor.kaggle_data.get('constructor_standings', pd.DataFrame())
-            
-            if constructor_data.empty:
-                return {k: 1.0 for k in range(1, 11)}  # Default value if no data
-                
-            # Get the most recent constructor standings
-            recent_standings = constructor_data.sort_values('raceId', ascending=False)
-            constructor_groups = recent_standings.groupby('constructorId')
-            
-            # Get the most recent entry for each constructor
-            latest_standings = []
-            for constructor_id, group in constructor_groups:
-                latest_standings.append(group.iloc[0])
-                
-            latest_standings_df = pd.DataFrame(latest_standings)
-            
-            if not latest_standings_df.empty and 'points' in latest_standings_df:
-                max_points = latest_standings_df['points'].max()
-                if max_points > 0:
-                    for _, row in latest_standings_df.iterrows():
-                        constructor_id = row['constructorId']
-                        points = row['points']
-                        # Scale from 0.8 to 1.5 based on points (better teams get higher factor)
-                        strengths[constructor_id] = 0.8 + 0.7 * (points / max_points)
-                else:
-                    # If no points data, use default values
-                    for constructor_id in latest_standings_df['constructorId'].unique():
-                        strengths[constructor_id] = 1.0
-            
-            # Ensure we have a default for any constructor not found
-            return defaultdict(lambda: 1.0, strengths)
-        except Exception as e:
-            logger.error(f"Error calculating constructor strengths: {e}")
-            return defaultdict(lambda: 1.0)
+        """Calculate balanced strength factors for each constructor based on 2023-2024 performance"""
+        # REBALANCED: More realistic constructor strength distribution
+        constructor_strengths_2024 = {
+            1: 1.3,  # Red Bull Racing
+            2: 1.2,  # Ferrari
+            3: 1.1,  # Mercedes
+            4: 1.2, # McLaren
+            5: 1.0,  # Aston Martin
+            6: 0.9,  # Alpine
+            7: 0.95, # Williams
+            8: 0.9,  # RB (AlphaTauri)
+            9: 0.85, # Sauber (Alfa Romeo)
+            10: 0.9, # Haas
+        }
+        
+        # Create defaultdict with these values
+        return defaultdict(lambda: 1.0, constructor_strengths_2024)
     
     def _get_recent_races(self, n_races: int = 5) -> List[int]:
         """Get IDs of the n most recent races"""
@@ -669,6 +711,80 @@ class QualifyingPredictor:
             # Re-normalize after amplification
             action_probs = action_probs / np.sum(action_probs)
             
+            # NEW: Apply time-weighted Q3 performance boost
+            q3_performance_boost = 1.2  # Base configurable parameter
+            max_years_relevance = 5     # How many years back to consider Q3 performances
+
+            for driver_idx, driver_id in enumerate(driver_ids):
+                if driver_idx < len(action_probs):
+                    # Get driver's Q3 record at this circuit
+                    driver_quals = circuit_quals[circuit_quals['driverId'] == driver_id]
+                    
+                    if not driver_quals.empty and 'raceId' in driver_quals.columns:
+                        # Sort by race ID (assuming higher race IDs are more recent)
+                        driver_quals = driver_quals.sort_values('raceId', ascending=False)
+                        
+                        # Get year information if available, otherwise use race ID as proxy
+                        if 'year' in driver_quals.columns:
+                            driver_quals['years_ago'] = datetime.now().year - driver_quals['year']
+                        else:
+                            # Estimate years based on race ID differences
+                            most_recent_race_id = self.data_processor.race_data['raceId'].max()
+                            avg_races_per_year = 22  # Average F1 races per year
+                            driver_quals['years_ago'] = (most_recent_race_id - driver_quals['raceId']) / avg_races_per_year
+                            
+                        # Filter to only races within the relevance window
+                        relevant_quals = driver_quals[driver_quals['years_ago'] <= max_years_relevance]
+                        
+                        # Calculate time-weighted Q3 factor
+                        q3_factor = 1.0
+                        
+                        if not relevant_quals.empty:
+                            total_weight = 0
+                            weighted_q3_score = 0
+                            
+                            for _, qual_row in relevant_quals.iterrows():
+                                # Calculate time decay factor (1.0 for current year, decreasing for older years)
+                                years_ago = qual_row['years_ago']
+                                time_weight = self._calculate_time_weight(years_ago, max_years_relevance)
+                                
+                                # Check if driver made Q3
+                                if pd.notna(qual_row['q3']):
+                                    # If position data is available, factor in their Q3 performance
+                                    q3_performance = 1.0
+                                    if 'position' in qual_row and pd.notna(qual_row['position']):
+                                        try:
+                                            position = int(qual_row['position'])
+                                            # Higher boost for better positions (P1-P5)
+                                            if position <= 5:
+                                                q3_performance = 1.4 - ((position - 1) * 0.08)  # P1: 1.4, P5: 1.08
+                                            elif position <= 10:
+                                                q3_performance = 1.0
+                                        except (ValueError, TypeError):
+                                            pass
+                                            
+                                    # Add this Q3 appearance to the weighted score
+                                    weighted_q3_score += time_weight * q3_performance
+                                    
+                                total_weight += time_weight
+                            
+                            # Calculate final Q3 factor, normalizing by total weight
+                            if total_weight > 0:
+                                normalized_q3_score = weighted_q3_score / total_weight
+                                q3_factor = 1.0 + (normalized_q3_score * q3_performance_boost * 0.1)
+                        
+                        # Apply the calculated factor
+                        action_probs[driver_idx] *= q3_factor
+                        
+                        # Log significant Q3 boosts for debugging
+                        if q3_factor > 1.2:
+                            driver_code = self.data_processor.driver_mapping.get_driver_code(driver_id)
+                            recent_q3s = len(relevant_quals[relevant_quals['q3'].notna()])
+                            logger.info(f"Applied time-weighted Q3 boost of {q3_factor:.2f} to {driver_code} at {circuit_name} (recent Q3s: {recent_q3s})")
+            
+            # Re-normalize after Q3 boost
+            action_probs = action_probs / np.sum(action_probs)
+            
             # Apply additional scaling to further differentiate top drivers
             # Add a power function that scales faster for higher probabilities
             action_probs = np.power(action_probs, 2)
@@ -681,7 +797,8 @@ class QualifyingPredictor:
                 'circuit': circuit_name,
                 'prediction_time': datetime.now().isoformat(),
                 'top5': [],
-                'confidence_score': float(confidence)
+                'confidence_score': float(confidence),
+                'q3_influence': q3_performance_boost  # Add this to track Q3 influence level
             }
             
             for i, idx in enumerate(top5_indices, 1):
@@ -696,15 +813,33 @@ class QualifyingPredictor:
                     
                 # Get driver's circuit-specific stats
                 driver_circuit_quals = circuit_quals[circuit_quals['driverId'] == driver_id]
+                q3_appearances = len(driver_circuit_quals[driver_circuit_quals['q3'].notna()])
+                
+                # Get Q3 stats for more detailed output
+                q3_stats = {}
+                if q3_appearances > 0:
+                    # Get Q3 times if available
+                    q3_times = []
+                    for _, qual in driver_circuit_quals.iterrows():
+                        if pd.notna(qual['q3']) and qual['q3'] != 'N/A':
+                            time_secs = convert_time_to_seconds(qual['q3'])
+                            if time_secs is not None:
+                                q3_times.append(time_secs)
+                    
+                    if q3_times:
+                        q3_stats['avg_time'] = sum(q3_times) / len(q3_times)
+                        q3_stats['best_time'] = min(q3_times)
+                        q3_stats['consistency'] = 1 - (np.std(q3_times) / q3_stats['avg_time'] if len(q3_times) > 1 else 0)
                 
                 prediction = {
                     'position': i,
                     'driver_code': driver_code,
                     'probability': float(action_probs[idx]),
                     'circuit_stats': {
-                        'q3_appearances': len(driver_circuit_quals[driver_circuit_quals['q3'].notna()]),
-                        'best_position': int(driver_circuit_quals['qualifyId'].count()),
-                        'last_result': self._get_last_result(driver_circuit_quals)
+                        'q3_appearances': q3_appearances,
+                        'best_position': self._get_best_position(driver_circuit_quals),
+                        'last_result': self._get_last_result(driver_circuit_quals),
+                        'q3_stats': q3_stats
                     }
                 }
                 
@@ -715,9 +850,97 @@ class QualifyingPredictor:
         except Exception as e:
             logger.error(f"Error formatting predictions: {e}", exc_info=True)
             return {"error": str(e)}
+    
+    def _calculate_time_weight(self, years_ago: float, max_years_relevance: float) -> float:
+        """
+        Calculate time weight with exponential decay rather than linear.
+        This gives much higher weight to very recent results.
+        
+        Args:
+            years_ago: How many years ago the result occurred
+            max_years_relevance: Maximum years to consider
+            
+        Returns:
+            Weight factor between 0.05 and 1.0
+        """
+        # Exponential decay with half-life of ~1.5 years
+        # This means results from 1.5 years ago are worth half as much as current results
+        decay_factor = 0.5  # Controls how quickly the influence drops off
+        
+        # Exponential decay formula: weight = base_weight * e^(-decay_factor * years_ago)
+        # Normalized so most recent result = 1.0
+        weight = np.exp(-decay_factor * years_ago)
+        
+        # Set minimum weight to 0.05 (instead of 0.2 in original)
+        return max(0.05, weight)
+    
+    def _apply_team_recency_bias(self, action_probs: np.ndarray) -> np.ndarray:
+        """
+        Apply a more balanced recency bias factor at the team level based on 2023-2024 form.
+        Creates a more realistic spread among teams without any single team dominating.
+        
+        Args:
+            action_probs: Current probability array
+            
+        Returns:
+            Updated probability array with team recency bias applied
+        """
+        # Map constructor IDs to their drivers
+        constructor_to_drivers = defaultdict(list)
+        driver_to_position = {}  # For accessing positions by driver ID
+        
+        for idx, driver_id in enumerate(self.data_processor.driver_mapping.get_current_driver_ids()):
+            if idx < len(action_probs):
+                constructor_id = self._get_driver_constructor(driver_id)
+                if constructor_id:
+                    constructor_to_drivers[constructor_id].append(driver_id)
+                    driver_to_position[driver_id] = idx
+        
+        # REBALANCED: 2023-2024 Team Performance Factors - More balanced distribution
+        # The top 4 teams are now closer together
+        team_performance_2024 = {
+            1: 1.3,  # Red Bull Racing
+            2: 1.2,  # Ferrari
+            3: 1.1,  # Mercedes
+            4: 1.2, # McLaren 
+            5: 1.0,  # Aston Martin
+            6: 0.9,  # Alpine
+            7: 0.95, # Williams (slight improvement)
+            8: 0.9,  # RB (AlphaTauri)
+            9: 0.85, # Sauber (Alfa Romeo)
+            10: 0.9, # Haas
+        }
+        
+        # Apply team recency bias to each driver
+        for constructor_id, driver_ids in constructor_to_drivers.items():
+            bias_factor = team_performance_2024.get(constructor_id, 1.0)
+            for driver_id in driver_ids:
+                idx = driver_to_position.get(driver_id)
+                if idx is not None:
+                    action_probs[idx] *= bias_factor
+        
+        # Log strong team performances
+        strong_teams = {c_id: factor for c_id, factor in team_performance_2024.items() if factor > 1.1}
+        if strong_teams:
+            logger.info(f"Applied team recency bias to {len(strong_teams)} teams: {strong_teams}")
+        
+        # Re-normalize
+        return action_probs / np.sum(action_probs)
+
+    def _get_best_position(self, driver_quals: pd.DataFrame) -> int:
+        """Get the driver's best qualifying position at this circuit."""
+        if driver_quals.empty:
+            return 20
+            
+        if 'position' in driver_quals.columns:
+            positions = driver_quals['position'].tolist()
+            positions = [int(p) if isinstance(p, (int, float, str)) and str(p).isdigit() else 20 for p in positions]
+            return min(positions) if positions else 20
+        
+        return 20
       
     def _get_driver_circuit_factor(self, driver_id: int, circuit_name: str) -> float:
-        """Calculate a circuit-specific driver performance factor for the given tracks"""
+        """Calculate a circuit-specific driver performance factor with balanced weighting"""
         try:
             # Get qualifying data for this circuit
             qual_data = self.data_processor.kaggle_data['qualifying']
@@ -734,64 +957,64 @@ class QualifyingPredictor:
             # Get driver code for special handling
             driver_code = self.data_processor.driver_mapping.get_driver_code(driver_id)
             
-            # Circuit-specific driver boosts based on your provided list
+            # REBALANCED: Circuit-specific driver boosts with more realistic distribution
             circuit_specific_boosts = {
-                # Red Bull
+                # Red Bull - Strong but more balanced
                 'VER': {
-                    'dutch': 1.8,        # Home race, historically strong
-                    'austria': 1.7,      # Red Bull Ring, dominant
-                    'belgium': 1.6,      # Excellent at Spa
-                    'bahrain': 1.3,      # Consistently strong
-                    'australian': 1.2,   # Decent in Australia
+                    'dutch': 1.5,        # Home race, historically strong
+                    'austria': 1.5,      # Red Bull Ring, strong
+                    'belgium': 1.4,      # Excellent at Spa
+                    'bahrain': 1.4,      # Strong opener
+                    'australian': 1.3,   # Good in Australia
                     'miami': 1.3,        # Good at Miami
-                    'british': 1.2,      # Good at Silverstone
-                    'canadian': 1.2,     # Decent in Canada
-                    'monaco': 0.8,       # Not his strongest historically
-                    'azerbaijan': 1.1,   # Baku, not his strongest
-                    'saudi': 1.2,        # Decent at Saudi
-                    'united': 1.3,       # Good at COTA
-                    'singapore': 0.9,    # Street circuit, not his traditional strength
-                    'italian': 1.3,      # Good at Monza
+                    'british': 1.3,      # Good at Silverstone
+                    'canadian': 1.3,     # Good in Canada
+                    'monaco': 1.2,       # Improved in recent years
+                    'azerbaijan': 1.2,   # Good at Baku
+                    'saudi': 1.3,        # Good at Saudi
+                    'united': 1.4,       # Strong at COTA
+                    'singapore': 1.2,    # Improved at Singapore
+                    'italian': 1.4,      # Strong at Monza
                     'japanese': 1.4,     # Strong at Suzuka
-                    'mexico': 1.5,       # High altitude favors Red Bull
+                    'mexico': 1.4,       # Strong at high altitude
                     'spain': 1.3,        # Good in Spain
-                    'hungary': 1.0,      # Average here
-                    'chinese': 1.3,      # Historically good
-                    'emilia': 1.4,       # Strong at Imola
+                    'hungary': 1.3,      # Good at Hungaroring
+                    'chinese': 1.3,      # Good in China
+                    'emilia': 1.3,       # Good at Imola
                 },
                 'PER': {
-                    'mexico': 1.6,       # Home race advantage
-                    'monaco': 1.6,       # Excellent at Monaco
-                    'azerbaijan': 1.7,   # Very strong at Baku
+                    'mexico': 1.3,       # Home race advantage
+                    'monaco': 1.2,       # Good but inconsistent at Monaco
+                    'azerbaijan': 1.3,   # Strong at Baku
                     'saudi': 1.3,        # Strong at Saudi
-                    'singapore': 1.5,    # Good at street circuits
-                    'miami': 1.2,        # Good at Miami
-                    'canadian': 1.2,     # Good in Canada
-                    'austria': 1.1,      # Decent at Red Bull Ring
-                    'bahrain': 1.1,      # Good performances
-                    'belgian': 1.1,      # Average at Spa
-                    'australian': 1.0,   # Average in Australia
-                    'british': 1.0,      # Average at Silverstone
-                    'dutch': 0.9,        # Not his strongest
-                    'united': 1.1,       # Decent at COTA
-                    'italian': 1.0,      # Average at Monza
-                    'japanese': 1.1,     # Decent at Suzuka
-                    'spain': 1.0,        # Average in Spain
-                    'hungary': 1.0,      # Average here
-                    'chinese': 1.1,      # Average in China
-                    'emilia': 1.0,       # Average at Imola
+                    'singapore': 1.1,    # Not as strong in recent years
+                    'miami': 1.0,        # Average at Miami
+                    'canadian': 1.0,     # Average in Canada
+                    'austria': 0.9,      # Below average at Red Bull Ring
+                    'bahrain': 1.0,      # Average performances
+                    'belgian': 0.9,      # Average at Spa
+                    'australian': 0.9,   # Struggles in Australia
+                    'british': 0.9,      # Struggles at Silverstone
+                    'dutch': 0.9,        # Consistently underperforms
+                    'united': 0.9,       # Average at COTA
+                    'italian': 0.9,      # Below average at Monza
+                    'japanese': 0.9,     # Average at Suzuka
+                    'spain': 0.9,        # Below average in Spain
+                    'hungary': 0.9,      # Struggles at Hungaroring
+                    'chinese': 0.9,      # Average in China
+                    'emilia': 0.9,       # Below average at Imola
                 },
                 
-                # Ferrari
+                # Ferrari - Consistent challenger
                 'LEC': {
-                    'monaco': 1.8,       # Home race, usually fast
-                    'azerbaijan': 1.6,   # Very strong at Baku
-                    'italian': 1.5,      # Strong at Ferrari's home race
-                    'singapore': 1.7,    # Excellent at street circuits
-                    'australian': 1.3,   # Strong in Australia
-                    'bahrain': 1.3,      # Historically strong
+                    'monaco': 1.5,       # Home race, usually fast (pole positions)
+                    'azerbaijan': 1.4,   # Very good at Baku
+                    'italian': 1.3,      # Good at Ferrari's home race
+                    'singapore': 1.4,    # Strong at street circuits
+                    'australian': 1.3,   # Good in Australia
+                    'bahrain': 1.3,      # Historically good
                     'belgium': 1.3,      # Good at Spa
-                    'saudi': 1.3,        # Strong at Saudi
+                    'saudi': 1.3,        # Good at Saudi
                     'british': 1.2,      # Good at British GP
                     'miami': 1.2,        # Good at Miami
                     'canadian': 1.2,     # Good in Canada
@@ -800,108 +1023,108 @@ class QualifyingPredictor:
                     'hungary': 1.2,      # Good at technical tracks
                     'dutch': 1.1,        # Decent at Zandvoort
                     'united': 1.2,       # Good at COTA
-                    'spain': 1.1,        # Decent in Spain
+                    'spain': 1.2,        # Good in Spain
                     'mexico': 1.1,       # Average here
                     'chinese': 1.2,      # Good in China
                     'emilia': 1.2,       # Good at Imola
                 },
                 'SAI': {
-                    'spanish': 1.5,      # Home race advantage
-                    'monaco': 1.5,       # Good at Monaco
-                    'british': 1.3,      # Strong at British GP
-                    'canadian': 1.3,     # Strong in Canada
-                    'italian': 1.4,      # Strong at Ferrari's home race
-                    'australian': 1.3,   # Strong in Australia
-                    'singapore': 1.4,    # Good at street circuits
-                    'hungary': 1.3,      # Strong at technical tracks
+                    'spanish': 1.3,      # Home race advantage
+                    'monaco': 1.3,       # Good at Monaco
+                    'british': 1.2,      # Good at British GP
+                    'canadian': 1.2,     # Good in Canada
+                    'italian': 1.3,      # Strong at Ferrari's home race
+                    'australian': 1.3,   # Strong in Australia (won in 2024)
+                    'singapore': 1.3,    # Good at street circuits
+                    'hungary': 1.2,      # Good at technical tracks
                     'azerbaijan': 1.2,   # Good at Baku
-                    'saudi': 1.2,        # Good at Saudi
-                    'japanese': 1.2,     # Good at Suzuka
+                    'saudi': 1.3,        # Strong at Saudi
+                    'japanese': 1.1,     # Good at Suzuka
                     'belgian': 1.2,      # Good at Spa
                     'dutch': 1.2,        # Good at Zandvoort
                     'austrian': 1.1,     # Decent at Red Bull Ring
-                    'miami': 1.1,        # Decent at Miami
+                    'miami': 1.2,        # Good at Miami
                     'united': 1.2,       # Good at COTA
                     'bahrain': 1.2,      # Good performances
-                    'mexico': 1.2,       # Good here
-                    'chinese': 1.1,      # Decent in China
+                    'mexico': 1.1,       # Good here
+                    'chinese': 1.2,      # Good in China
                     'emilia': 1.2,       # Good at Imola
                 },
                 
-                # Mercedes
+                # Mercedes - Competitive but not dominant
                 'HAM': {
-                    'british': 1.8,      # Home race, historically dominant
-                    'hungarian': 1.7,    # Historically dominant
-                    'canadian': 1.6,     # Historically very strong
-                    'chinese': 1.6,      # Historically dominant
-                    'spain': 1.5,        # Historically strong
-                    'singapore': 1.5,    # Strong at Singapore
-                    'italian': 1.5,      # Strong at Monza
-                    'belgian': 1.4,      # Excellent at Spa
-                    'bahrain': 1.4,      # Historically strong
-                    'japanese': 1.4,     # Strong at Suzuka
-                    'australian': 1.5,   # Historically dominant
-                    'saudi': 1.3,        # Strong at Saudi
-                    'mexico': 1.2,       # Good here
-                    'united': 1.4,       # Strong at COTA
-                    'azerbaijan': 1.2,   # Good at Baku
-                    'dutch': 1.1,        # Average at Zandvoort
-                    'monaco': 1.1,       # Not his strongest recently
+                    'british': 1.4,      # Home race, still strong
+                    'hungarian': 1.3,    # Historically strong
+                    'canadian': 1.2,     # Historically strong
+                    'chinese': 1.2,      # Good performance
+                    'spain': 1.2,        # Solid performances
+                    'singapore': 1.1,    # Average at Singapore recently
+                    'italian': 1.1,      # Average at Monza
+                    'belgian': 1.1,      # Average at Spa
+                    'bahrain': 1.1,      # Average performances recently
+                    'japanese': 1.1,     # Above average at Suzuka
+                    'australian': 1.1,   # Above average in Australia
+                    'saudi': 1.1,        # Average at Saudi
+                    'mexico': 1.1,       # Average here
+                    'united': 1.2,       # Above average at COTA
+                    'azerbaijan': 1.1,   # Average at Baku
+                    'dutch': 1.0,        # Average at Zandvoort
+                    'monaco': 1.0,       # Not his strongest recently
                     'austrian': 1.0,     # Average at Red Bull Ring
-                    'miami': 1.2,        # Good at Miami
-                    'emilia': 1.2,       # Good at Imola
+                    'miami': 1.0,        # Average at Miami
+                    'emilia': 1.0,       # Average at Imola
                 },
                 'RUS': {
-                    'british': 1.5,      # Home race advantage
+                    'british': 1.3,      # Home race advantage
                     'azerbaijan': 1.3,   # Strong at Baku
-                    'bahrain': 1.3,      # Good performances
-                    'belgian': 1.3,      # Good at Spa
+                    'bahrain': 1.2,      # Good performances
+                    'belgian': 1.2,      # Good at Spa
                     'austrian': 1.2,     # Good at Red Bull Ring
-                    'hungarian': 1.4,    # Good at technical tracks
-                    'singapore': 1.3,    # Strong at street circuits
-                    'australian': 1.3,   # Good in Australia
+                    'hungarian': 1.3,    # Strong at technical tracks
+                    'singapore': 1.2,    # Strong at street circuits
+                    'australian': 1.2,   # Good in Australia
                     'miami': 1.2,        # Good at Miami
                     'italian': 1.2,      # Good at Monza
                     'japanese': 1.2,     # Good at Suzuka
                     'saudi': 1.2,        # Good at Saudi
                     'canadian': 1.2,     # Good in Canada
                     'spanish': 1.2,      # Good in Spain
-                    'monaco': 1.2,       # Good at Monaco
-                    'mexico': 1.2,       # Good here
-                    'united': 1.3,       # Strong at COTA
-                    'dutch': 1.1,        # Decent at Zandvoort
-                    'chinese': 1.2,      # Good in China
-                    'emilia': 1.1,       # Decent at Imola
+                    'monaco': 1.1,      # Good at Monaco
+                    'mexico': 1.1,      # Good here
+                    'united': 1.2,      # Good at COTA
+                    'dutch': 1.2,       # Good at Zandvoort
+                    'chinese': 1.2,     # Good in China
+                    'emilia': 1.1,      # Good at Imola
                 },
                 
-                # McLaren
+                # McLaren - Strong contender but not overwhelmingly dominant
                 'NOR': {
-                    'british': 1.5,      # Home race advantage
-                    'italian': 1.4,      # Won here in 2021
-                    'belgian': 1.4,      # Very good at Spa
-                    'austrian': 1.4,     # Very good at Red Bull Ring
-                    'dutch': 1.3,        # Strong at Zandvoort
-                    'miami': 1.3,        # Strong at Miami
+                    'british': 1.3,      # Home race advantage
+                    'italian': 1.3,      # Strong at Monza
+                    'belgian': 1.3,      # Strong at Spa
+                    'austrian': 1.3,     # Strong at Red Bull Ring
+                    'dutch': 1.2,        # Good at Zandvoort
+                    'miami': 1.2,        # Good at Miami
                     'japanese': 1.3,     # Strong at Suzuka
-                    'monaco': 1.5,       # Strong at Monaco
-                    'singapore': 1.4,    # Good at street circuits
+                    'monaco': 1.3,       # Strong at Monaco
+                    'singapore': 1.3,    # Good at street circuits
                     'hungarian': 1.3,    # Good at technical tracks
-                    'australian': 1.3,   # Strong in Australia
-                    'azerbaijan': 1.3,   # Strong at Baku
-                    'canadian': 1.3,     # Strong in Canada
-                    'mexican': 1.2,      # Good here
-                    'bahrain': 1.2,      # Good performances
-                    'saudi': 1.2,        # Good at Saudi
-                    'spanish': 1.2,      # Good in Spain
-                    'united': 1.3,       # Strong at COTA
-                    'chinese': 1.2,      # Good in China
-                    'emilia': 1.3,       # Strong at Imola
+                    'australian': 1.3,   # Good in Australia
+                    'azerbaijan': 1.2,   # Good at Baku
+                    'canadian': 1.3,     # Good in Canada
+                    'mexican': 1.2,      # Good in Mexico
+                    'bahrain': 1.3,      # Good performances
+                    'saudi': 1.3,        # Good at Saudi
+                    'spanish': 1.3,      # Good in Spain
+                    'united': 1.4,       # Strong at COTA
+                    'chinese': 1.3,      # Good in China
+                    'emilia': 1.3,       # Good at Imola
                 },
                 'PIA': {
-                    'australian': 1.5,   # Home race advantage
-                    'italian': 1.3,      # Strong at Monza
-                    'austrian': 1.3,     # Strong at Red Bull Ring
-                    'monaco': 1.3,       # Good at Monaco
+                    'australian': 1.3,   # Home race advantage
+                    'italian': 1.2,      # Good at Monza
+                    'austrian': 1.3,     # Good at Red Bull Ring
+                    'monaco': 1.2,       # Good at Monaco
                     'singapore': 1.2,    # Good at street circuits
                     'hungarian': 1.2,    # Good at technical tracks
                     'dutch': 1.2,        # Good at Zandvoort
@@ -910,148 +1133,37 @@ class QualifyingPredictor:
                     'saudi': 1.2,        # Good at Saudi
                     'japanese': 1.2,     # Good at Suzuka
                     'belgian': 1.2,      # Good at Spa
-                    'azerbaijan': 1.2,   # Good at Baku
-                    'canadian': 1.2,     # Good in Canada
-                    'mexican': 1.1,      # Decent here
-                    'bahrain': 1.1,      # Decent performances
-                    'spanish': 1.1,      # Decent in Spain
-                    'united': 1.2,       # Good at COTA
-                    'chinese': 1.1,      # Decent in China
-                    'emilia': 1.1,       # Decent at Imola
-                },
-                
-                # Others (key drivers)
-                'ALO': {
-                    'spanish': 1.7,      # Home race advantage
-                    'monaco': 1.6,       # Excellent at Monaco
-                    'canadian': 1.4,     # Very strong in Canada
-                    'singapore': 1.5,    # Strong at Singapore
-                    'hungarian': 1.4,    # Won here in the past
-                    'azerbaijan': 1.3,   # Strong at Baku
-                    'japanese': 1.3,     # Strong at Suzuka
-                    'belgian': 1.3,      # Strong at Spa
-                    'bahrain': 1.3,      # Good performances
-                    'chinese': 1.3,      # Strong in China
-                    'australian': 1.2,   # Good in Australia
-                    'british': 1.2,      # Good at British GP
-                    'italian': 1.2,      # Good at Monza
-                    'saudi': 1.2,        # Good at Saudi
-                    'mexican': 1.1,      # Decent here
-                    'dutch': 1.1,        # Decent at Zandvoort
-                    'united': 1.2,       # Good at COTA
-                    'miami': 1.1,        # Decent at Miami
-                    'austrian': 1.0,     # Average at Red Bull Ring
-                    'emilia': 1.2,       # Good at Imola
-                },
-                'HUL': {
-                    'belgian': 1.3,      # Strong at Spa
-                    'austrian': 1.2,     # Good at Red Bull Ring
-                    'german': 1.5,       # Home race (when it happens)
-                    'singapore': 1.1,    # Decent at street circuits
-                    'monaco': 1.1,       # Decent at Monaco
-                    'italian': 1.2,      # Good at Monza
-                    'british': 1.1,      # Decent at British GP
-                    'canadian': 1.1,     # Decent in Canada
-                    'australian': 1.0,   # Average in Australia
-                    'bahrain': 1.1,      # Decent performances
-                    'chinese': 1.1,      # Decent in China
-                    'united': 1.1,       # Decent at COTA
-                    'mexican': 1.0,      # Average here
-                    'brazilian': 1.1,    # Decent in Brazil
-                    'japanese': 1.1,     # Decent at Suzuka
-                    'azerbaijan': 1.0,   # Average at Baku
-                    'saudi': 1.0,        # Average at Saudi
-                    'dutch': 1.0,        # Average at Zandvoort
-                    'spanish': 1.0,      # Average in Spain
-                    'hungarian': 1.0,    # Average at technical tracks
-                },
-                'BOT': {
-                    'austrian': 1.4,     # Very good at Red Bull Ring
-                    'russian': 1.5,      # Historically strong
-                    'italian': 1.3,      # Strong at Monza
-                    'belgian': 1.2,      # Good at Spa
-                    'australian': 1.3,   # Strong in Australia
-                    'bahrain': 1.2,      # Good performances
-                    'british': 1.2,      # Good at British GP
-                    'canadian': 1.1,     # Decent in Canada
-                    'chinese': 1.2,      # Good in China
-                    'japanese': 1.1,     # Decent at Suzuka
-                    'azerbaijani': 1.1,  # Decent at Baku
-                    'dutch': 1.0,        # Average at Zandvoort
-                    'monaco': 1.0,       # Average at Monaco
-                    'singapore': 1.0,    # Average at street circuits
-                    'saudi': 1.0,        # Average at Saudi
-                    'mexican': 1.0,      # Average here
-                    'united': 1.1,       # Decent at COTA
-                    'spanish': 1.1,      # Decent in Spain
-                    'hungarian': 1.2,    # Good at technical tracks
-                    'miami': 1.0,        # Average at Miami
+                    'azerbaijan': 1.1,   # Good at Baku
+                    'canadian': 1.1,     # Good in Canada
+                    'mexican': 1.1,      # Good here
+                    'bahrain': 1.1,      # Good performances
+                    'spanish': 1.1,      # Good in Spain
+                    'united': 1.1,       # Good at COTA
+                    'chinese': 1.1,      # Good in China
+                    'emilia': 1.1,       # Good at Imola
                 }
             }
             
-            # Map alternative circuit names
+            # Handle different naming conventions
             normalized_name = circuit_name.lower().strip()
-            circuit_mapping = {
-                'silverstone': 'british',
-                'monza': 'italian',
-                'spa': 'belgian',
-                'sochi': 'russian',
-                'barcelona': 'spanish',
-                'catalunya': 'spanish',
-                'cota': 'united',
-                'suzuka': 'japanese',
-                'sakhir': 'bahrain',
-                'sepang': 'malaysian',
-                'imola': 'emilia',
-                'baku': 'azerbaijan',
-                'interlagos': 'brazilian',
-                'zandvoort': 'dutch',
-                'spielberg': 'austrian',
-                'shanghai': 'chinese',
-                'yas marina': 'abu',
-                'circuit gilles villeneuve': 'canadian',
-                'montreal': 'canadian',
-                'melbourne': 'australian',
-                'red bull ring': 'austrian',
-                'circuit of the americas': 'united',
-                'austin': 'united',
-                'jeddah': 'saudi',
-                'hungaroring': 'hungarian',
-                'ciudad de mexico': 'mexican',
-                'mexico city': 'mexican',
-            }
+            if 'mexico' in normalized_name:
+                return circuit_specific_boosts.get(driver_code, {}).get('mexican', 1.0)
+            elif 'hungary' in normalized_name:
+                return circuit_specific_boosts.get(driver_code, {}).get('hungarian', 1.0)
+            elif 'italy' in normalized_name or 'monza' in normalized_name:
+                return circuit_specific_boosts.get(driver_code, {}).get('italian', 1.0)
+            elif 'us' in normalized_name or 'cota' in normalized_name:
+                return circuit_specific_boosts.get(driver_code, {}).get('united', 1.0)
+            elif 'imola' in normalized_name:
+                return circuit_specific_boosts.get(driver_code, {}).get('emilia', 1.0)
             
-            if normalized_name in circuit_mapping:
-                normalized_name = circuit_mapping[normalized_name]
+            # For any other circuits or if name doesn't match exactly
+            for circuit_key in circuit_specific_boosts.get(driver_code, {}):
+                if circuit_key in normalized_name:
+                    return circuit_specific_boosts[driver_code][circuit_key]
             
-            # Apply circuit specific boost if available
-            if driver_code in circuit_specific_boosts and normalized_name in circuit_specific_boosts[driver_code]:
-                return circuit_specific_boosts[driver_code][normalized_name]
-            
-            # Default factor processing from historical data
-            factor = 1.0
-            
-            if not driver_quals.empty:
-                # Calculate factor based on qualifying positions
-                if 'position' in driver_quals.columns:
-                    positions = driver_quals['position'].tolist()
-                    positions = [int(p) if isinstance(p, (int, float, str)) and str(p).isdigit() else 20 for p in positions]
-                    avg_position = sum(positions) / len(positions) if positions else 10
-                    
-                    # Very aggressive non-linear scaling
-                    if avg_position <= 3:
-                        factor = 4.0 - (avg_position - 1) * 1.0  # P1→4.0, P3→2.0
-                    elif avg_position <= 10:
-                        factor = 2.0 - (avg_position - 3) * 0.14  # P4→1.86, P10→1.0
-                    else:
-                        factor = 1.0 - (avg_position - 10) * 0.09  # P11→0.91, P20→0.1
-                        
-                    # Apply larger bonus for proven track performance
-                    consistency_bonus = min(1.5, len(positions) / 2) * 0.5  # Up to 75% bonus for 3+ races
-                    factor = factor * (1 + consistency_bonus)
-            
-            # Return a minimum factor to avoid completely eliminating drivers
-            return max(0.2, factor)
+            # Default value if no match is found
+            return 1.0
         except Exception as e:
             logger.error(f"Error calculating driver circuit factor: {e}")
             return 1.0
@@ -1258,6 +1370,66 @@ class QualifyingPredictor:
         except Exception as e:
             logger.error(f"Error processing qualifying features for {circuit_name}: {e}", exc_info=True)
             return np.zeros(60)
+        
+    def get_standardized_circuit_name(self, circuit_name: str) -> str:
+        """Map file names to standardized circuit names in the database"""
+        
+        # Create a mapping dictionary for circuit names
+        circuit_mapping = {
+            # Original mappings
+            'emilia romagna': 'emilia',
+            'mexico city': 'mexico',
+            'monaco': 'monaco',      # Changed from 'monaco gp' to 'monte' to match the circuits_data
+            'saudi arabian': 'saudi',
+            'united states': 'us',  # Changed from 'us' to match the circuits_data keys
+            
+            # Add additional mappings for possible variations
+            'bahrain': 'bahrain',
+            'jeddah': 'saudi',
+            'baku': 'azerbaijan', 
+            'melbourne': 'australian',
+            'albert park': 'australian',
+            'catalunya': 'spanish',
+            'barcelona': 'spanish',
+            'monte carlo': 'monaco',
+            'silverstone': 'british',
+            'spielberg': 'austrian',
+            'red bull ring': 'austrian',
+            'hungaroring': 'hungarian',
+            'spa': 'belgian',
+            'monza': 'italian',
+            'marina bay': 'singapore',
+            'suzuka': 'japanese',
+            'losail': 'qatar',
+            'cota': 'us',
+            'circuit of the americas': 'us',
+            'autodromo hermanos rodriguez': 'mexican',
+            'interlagos': 'brazilian',
+            'jose carlos pace': 'brazilian',
+            'yas marina': 'abu',
+            'miami international': 'miami',
+            'zandvoort': 'dutch',
+            'las vegas': 'vegas'
+        }
+        
+        # Convert to lowercase for case-insensitive matching
+        circuit_name_lower = circuit_name.lower()
+        
+        # First try exact match
+        if circuit_name_lower in circuit_mapping:
+            return circuit_mapping[circuit_name_lower]
+            
+        # Then try partial match
+        for key, value in circuit_mapping.items():
+            if key in circuit_name_lower or circuit_name_lower in key:
+                return value
+                
+        # If no match found, check if it's already a standard name by looking in circuits_data keys
+        if circuit_name_lower in self.data_processor.circuits_data:
+            return circuit_name_lower
+                
+        # Return the original if no mapping found
+        return circuit_name_lower
     
     def _process_weather_features(self, race_info: pd.DataFrame) -> np.ndarray:
         """

@@ -275,16 +275,7 @@ class SimplifiedF1Net(nn.Module):
         return policy_logits, value
 
 def convert_time_to_seconds(time_str: str) -> Optional[float]:
-    """
-    Convert a qualifying time string to seconds.
-    Handles formats like "1:23.456" or "83.456"
-    
-    Args:
-        time_str: String representing a qualifying time
-        
-    Returns:
-        Float representing time in seconds, or None if invalid
-    """
+    """Helper method to convert qualifying time to seconds."""
     if pd.isna(time_str) or time_str == 'N/A' or time_str == '\\N':
         return None
         
@@ -304,9 +295,6 @@ def convert_time_to_seconds(time_str: str) -> Optional[float]:
             # Validate the time is reasonable (between 30 seconds and 3 minutes)
             if 30 <= total_seconds <= 180:
                 return total_seconds
-            else:
-                logger.warning(f"Qualifying time outside reasonable range: {total_seconds} seconds")
-                return None
                 
         elif isinstance(time_str, (int, float)):
             # Direct numeric input
@@ -316,6 +304,5 @@ def convert_time_to_seconds(time_str: str) -> Optional[float]:
                 
         return None
             
-    except (ValueError, TypeError) as e:
-        logger.warning(f"Error parsing time string '{time_str}': {str(e)}")
+    except (ValueError, TypeError):
         return None

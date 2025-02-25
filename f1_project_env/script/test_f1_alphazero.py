@@ -1,4 +1,3 @@
-# File: test_f1_alphazero.py
 import os
 import logging
 import torch
@@ -84,7 +83,12 @@ class F1AlphaZeroTester:
     def test_qualifying_prediction(self, test_circuits: List[str] = None):
         """Test qualifying predictions"""
         if test_circuits is None:
-            test_circuits = ['british', 'miami', 'bahrain', 'dutch']
+            test_circuits = [
+            'australian', 'austrian', 'azerbaijan', 'bahrain', 'belgian', 
+            'british', 'canadian', 'chinese', 'dutch', 'emilia romagna', 
+            'hungarian', 'italian', 'japanese', 'mexico city', 'miami', 
+            'monaco', 'saudi arabian', 'singapore', 'spanish', 'united states'
+        ]
             
         logger.info("Testing qualifying predictions...")
         results = {}
@@ -145,7 +149,56 @@ class F1AlphaZeroTester:
             
         logger.info("-" * 80)
         logger.info(f"Model Confidence: {predictions.get('confidence_score', 'N/A')}")
+    
+    def check_available_circuits(self):
+        """
+        Check which circuits are available in the circuits_data dictionary.
+        This helps diagnose naming issues.
+        """
+        print("\nAvailable circuits in dataset:")
+        print("-" * 50)
         
+        available_circuits = sorted(self.data_processor.circuits_data.keys())
+        for circuit_key in available_circuits:
+            print(f"- '{circuit_key}'")
+        
+        print("\nStandardization test for all test circuits:")
+        print("-" * 50)
+        
+        test_names = [
+            'emilia romagna', 'imola', 'emilia',
+            'mexico city', 'mexican', 'mexico',
+            'monaco', 'monte carlo', 'monte',
+            'united states', 'cota', 'us', 'united',
+            'saudi arabian', 'jeddah', 'saudi',
+            'british', 'silverstone'
+        ]
+        
+        for name in test_names:
+            std_name = self.get_standardized_circuit_name(name)
+            found = std_name in self.data_processor.circuits_data
+            status = "✓" if found else "✗"
+            print(f"{status} '{name}' → '{std_name}'")
+        
+        # Test all standardization for all available test circuits
+        print("\nTest all circuits in the test suite:")
+        print("-" * 50)
+        
+        test_circuits = [
+            'australian', 'austrian', 'azerbaijan', 'bahrain', 'belgian', 
+            'british', 'canadian', 'chinese', 'dutch', 'emilia romagna', 
+            'hungarian', 'italian', 'japanese', 'mexico city', 'miami', 
+            'monaco', 'saudi arabian', 'singapore', 'spanish', 'united states'
+        ]
+        
+        for circuit in test_circuits:
+            std_name = self.get_standardized_circuit_name(circuit)
+            found = std_name in self.data_processor.circuits_data
+            status = "✓" if found else "✗"
+            print(f"{status} '{circuit}' → '{std_name}'")
+        
+        return True
+    
     def run_all_tests(self):
         """Run all tests"""
         try:
