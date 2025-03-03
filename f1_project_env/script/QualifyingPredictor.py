@@ -310,7 +310,7 @@ class QualifyingPredictor:
             # REBALANCED: Driver-specific 2023-2024 performance boost
             driver_2024_boost = {
                 'VER': 1.3,  # Max Verstappen
-                'NOR': 1.25, # Lando Norris
+                'NOR': 1.2, # Lando Norris
                 'PIA': 1.15, # Oscar Piastri
                 'LEC': 1.2,  # Charles Leclerc
                 'SAI': 1.15, # Carlos Sainz
@@ -454,7 +454,7 @@ class QualifyingPredictor:
             1: 1.3,  # Red Bull Racing
             2: 1.2,  # Ferrari
             3: 1.1,  # Mercedes
-            4: 1.2, # McLaren
+            4: 1.15, # McLaren
             5: 1.0,  # Aston Martin
             6: 0.9,  # Alpine
             7: 0.95, # Williams
@@ -902,7 +902,7 @@ class QualifyingPredictor:
             1: 1.3,  # Red Bull Racing
             2: 1.2,  # Ferrari
             3: 1.1,  # Mercedes
-            4: 1.2, # McLaren 
+            4: 1.15, # McLaren 
             5: 1.0,  # Aston Martin
             6: 0.9,  # Alpine
             7: 0.95, # Williams (slight improvement)
@@ -1100,47 +1100,47 @@ class QualifyingPredictor:
                 # McLaren - Strong contender but not overwhelmingly dominant
                 'NOR': {
                     'british': 1.3,      # Home race advantage
-                    'italian': 1.3,      # Strong at Monza
-                    'belgian': 1.3,      # Strong at Spa
-                    'austrian': 1.3,     # Strong at Red Bull Ring
+                    'italian': 1.2,      # Strong at Monza
+                    'belgian': 1.2,      # Strong at Spa
+                    'austrian': 1.2,     # Strong at Red Bull Ring
                     'dutch': 1.2,        # Good at Zandvoort
                     'miami': 1.2,        # Good at Miami
-                    'japanese': 1.3,     # Strong at Suzuka
-                    'monaco': 1.3,       # Strong at Monaco
-                    'singapore': 1.3,    # Good at street circuits
-                    'hungarian': 1.3,    # Good at technical tracks
-                    'australian': 1.3,   # Good in Australia
+                    'japanese': 1.2,     # Strong at Suzuka
+                    'monaco': 1.2,       # Strong at Monaco
+                    'singapore': 1.2,    # Good at street circuits
+                    'hungarian': 1.2,    # Good at technical tracks
+                    'australian': 1.2,   # Good in Australia
                     'azerbaijan': 1.2,   # Good at Baku
-                    'canadian': 1.3,     # Good in Canada
+                    'canadian': 1.2,     # Good in Canada
                     'mexican': 1.2,      # Good in Mexico
-                    'bahrain': 1.3,      # Good performances
-                    'saudi': 1.3,        # Good at Saudi
-                    'spanish': 1.3,      # Good in Spain
-                    'united': 1.4,       # Strong at COTA
-                    'chinese': 1.3,      # Good in China
-                    'emilia': 1.3,       # Good at Imola
+                    'bahrain': 1.2,      # Good performances
+                    'saudi': 1.2,        # Good at Saudi
+                    'spanish': 1.2,      # Good in Spain
+                    'united': 1.3,       # Strong at COTA
+                    'chinese': 1.2,      # Good in China
+                    'emilia': 1.2,       # Good at Imola
                 },
                 'PIA': {
                     'australian': 1.3,   # Home race advantage
-                    'italian': 1.2,      # Good at Monza
-                    'austrian': 1.3,     # Good at Red Bull Ring
-                    'monaco': 1.2,       # Good at Monaco
-                    'singapore': 1.2,    # Good at street circuits
-                    'hungarian': 1.2,    # Good at technical tracks
-                    'dutch': 1.2,        # Good at Zandvoort
-                    'miami': 1.2,        # Good at Miami
-                    'british': 1.2,      # Good at British GP
-                    'saudi': 1.2,        # Good at Saudi
-                    'japanese': 1.2,     # Good at Suzuka
-                    'belgian': 1.2,      # Good at Spa
-                    'azerbaijan': 1.1,   # Good at Baku
-                    'canadian': 1.1,     # Good in Canada
-                    'mexican': 1.1,      # Good here
-                    'bahrain': 1.1,      # Good performances
-                    'spanish': 1.1,      # Good in Spain
-                    'united': 1.1,       # Good at COTA
-                    'chinese': 1.1,      # Good in China
-                    'emilia': 1.1,       # Good at Imola
+                    'italian': 1.1,      # Good at Monza
+                    'austrian': 1.2,     # Good at Red Bull Ring
+                    'monaco': 1.1,       # Good at Monaco
+                    'singapore': 1.1,    # Good at street circuits
+                    'hungarian': 1.1,    # Good at technical tracks
+                    'dutch': 1.1,        # Good at Zandvoort
+                    'miami': 1.1,        # Good at Miami
+                    'british': 1.1,      # Good at British GP
+                    'saudi': 1.1,        # Good at Saudi
+                    'japanese': 1.1,     # Good at Suzuka
+                    'belgian': 1.1,      # Good at Spa
+                    'azerbaijan': 1.0,   # Good at Baku
+                    'canadian': 1.0,     # Good in Canada
+                    'mexican': 1.0,      # Good here
+                    'bahrain': 1.0,      # Good performances
+                    'spanish': 1.0,      # Good in Spain
+                    'united': 1.0,       # Good at COTA
+                    'chinese': 1.0,      # Good in China
+                    'emilia': 1.0,       # Good at Imola
                 }
             }
             
