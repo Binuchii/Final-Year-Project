@@ -1,0 +1,25 @@
+F1 QUALIFYING PREDICTION EVALUATION REPORT
+==================================================
+
+KEY METRICS SUMMARY:
+------------------------------
+Metric              model          random_baselineprevious_quali_baseline
+-----------------------------------------------------------------
+top3_f1             87.8          %50.3          %73.3          %
+top5_f1             95.6          %62.8          %97.9          %
+position_within_1   100.0         %18.0          %78.2          %
+position_within_2   100.0         %40.0          %94.1          %
+position_mae        0.63           3.40           0.95           
+exact_accuracy      37.0          %5.0           %32.4          %
+
+INTERPRETATION:
+------------------------------
+- Your model shows excellent performance at predicting top 5 qualifiers
+- 100.0% of predictions are within 1 position of actual result
+- Your model is 32.8% better than random_baseline, 2.4% worse than previous_quali_baseline
+
+RECOMMENDATIONS:
+------------------------------
+1. Use F1 score as your primary evaluation metric (especially top3_f1 or top5_f1)
+2. Track 'position_within_n' metrics to measure how close predictions are
+3. Compare against baselines to demonstrate model value

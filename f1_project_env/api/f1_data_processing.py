@@ -118,14 +118,14 @@ class F1DataProcessor:
     def _load_and_clean_data(self):
         """Load and clean all required F1 datasets."""
         self.kaggle_data = {
-            "drivers": self._clean_drivers_data(self._load_kaggle_data(os.path.join(self.data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/api/data/drivers.csv"))),
-            "races": self._clean_races_data(self._load_kaggle_data(os.path.join(self.data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/api/data/races.csv"))),
-            "results": self._clean_results_data(self._load_kaggle_data(os.path.join(self.data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/api/data/results.csv"))),
-            "constructor_results": self._clean_constructorResults_data(self._load_kaggle_data(os.path.join(self.data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/api/data/constructor_results.csv"))),
-            "constructor_standings": self._clean_Standings_data(self._load_kaggle_data(os.path.join(self.data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/api/data/constructor_standings.csv"))),
-            "teams": self._clean_teams_data(self._load_kaggle_data(os.path.join(self.data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/api/data/constructors.csv"))),
-            "qualifying": self._clean_qualifying_data(self._load_kaggle_data(os.path.join(self.data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/api/data/qualifying.csv"))),
-            "weather": self._clean_weather_data(self._load_kaggle_data(os.path.join(self.data_dir, "C:/Users/Albin Binu/Documents/College/Year 4/Final Year Project/f1_project_env/api/data/cleaned_weather_with_raceId.csv")))
+            "drivers": self._clean_drivers_data(self._load_kaggle_data(os.path.join(self.data_dir, "drivers.csv"))),
+            "races": self._clean_races_data(self._load_kaggle_data(os.path.join(self.data_dir, "races.csv"))),
+            "results": self._clean_results_data(self._load_kaggle_data(os.path.join(self.data_dir, "results.csv"))),
+            "constructor_results": self._clean_constructorResults_data(self._load_kaggle_data(os.path.join(self.data_dir, "constructor_results.csv"))),
+            "constructor_standings": self._clean_Standings_data(self._load_kaggle_data(os.path.join(self.data_dir, "constructor_standings.csv"))),
+            "teams": self._clean_teams_data(self._load_kaggle_data(os.path.join(self.data_dir, "constructors.csv"))),
+            "qualifying": self._clean_qualifying_data(self._load_kaggle_data(os.path.join(self.data_dir, "qualifying.csv"))),
+            "weather": self._clean_weather_data(self._load_kaggle_data(os.path.join(self.data_dir, "cleaned_weather_with_raceId.csv")))
         }
         
         # Load circuit data

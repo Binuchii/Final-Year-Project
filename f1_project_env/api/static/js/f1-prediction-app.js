@@ -440,8 +440,7 @@ const F1PredictionApp = () => {
                     <div className="ml-3 flex-grow">
                       <div className="font-semibold">{driver.driver_code}</div>
                       <div className="text-sm text-gray-600">
-                        Q3 Appearances: {driver.circuit_stats.q3_appearances} | 
-                        Best Position: {driver.circuit_stats.best_position}
+                        Q3 Appearances: {driver.circuit_stats.q3_appearances}
                       </div>
                     </div>
                     <div className="flex-shrink-0 w-20 text-right font-medium">

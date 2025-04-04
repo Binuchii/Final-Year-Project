@@ -287,8 +287,8 @@ if __name__ == "__main__":
     test_driver_mapping()
     
     # Initialize processor
-    data_dir = r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\data"
-    circuits_folder = r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\data\calculated_variables"
+    data_dir = r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\api\data"
+    circuits_folder = r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\api\data\calculated_variables"
     processor = F1DataProcessor(data_dir=data_dir, circuits_folder=circuits_folder)
     
     # Run all tests

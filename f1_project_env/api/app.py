@@ -7,27 +7,6 @@ import os
 from pathlib import Path
 import torch
 
-# Import your existing code - update these imports if needed
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
-import pandas as pd
-import numpy as np
-
-# Import the necessary classes from your files
-from mcts_and_nn import (
-    MCTSConfig,
-    ModelConfig,
-    SimplifiedF1Net,
-    MCTS,
-    convert_time_to_seconds
-)
-
-# Import your F1 prediction modules
-from f1_data_processing import F1DataProcessor
-from QualifyingPredictor import QualifyingPredictor, PredictorConfig
-from mcts_and_nn import MCTSConfig, ModelConfig
-from F1PredictionEvaluator import F1PredictionEvaluator, convert_predictions_to_evaluator_format, create_actual_results_from_data
-
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, 
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

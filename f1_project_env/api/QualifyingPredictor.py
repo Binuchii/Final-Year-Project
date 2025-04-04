@@ -927,17 +927,6 @@ class QualifyingPredictor:
             return {"error": str(e)}
     
     def _calculate_time_weight(self, years_ago: float, max_years_relevance: float) -> float:
-        """
-        Calculate time weight with exponential decay rather than linear.
-        This gives much higher weight to very recent results.
-        
-        Args:
-            years_ago: How many years ago the result occurred
-            max_years_relevance: Maximum years to consider
-            
-        Returns:
-            Weight factor between 0.05 and 1.0
-        """
         # Exponential decay with half-life of ~1.5 years
         # This means results from 1.5 years ago are worth half as much as current results
         decay_factor = 0.5  # Controls how quickly the influence drops off
@@ -950,16 +939,6 @@ class QualifyingPredictor:
         return max(0.05, weight)
     
     def _apply_team_recency_bias(self, action_probs: np.ndarray) -> np.ndarray:
-        """
-        Apply a more balanced recency bias factor at the team level based on 2023-2024 form.
-        Creates a more realistic spread among teams without any single team dominating.
-        
-        Args:
-            action_probs: Current probability array
-            
-        Returns:
-            Updated probability array with team recency bias applied
-        """
         # Map constructor IDs to their drivers
         constructor_to_drivers = defaultdict(list)
         driver_to_position = {}  # For accessing positions by driver ID
@@ -971,8 +950,6 @@ class QualifyingPredictor:
                     constructor_to_drivers[constructor_id].append(driver_id)
                     driver_to_position[driver_id] = idx
         
-        # REBALANCED: 2023-2024 Team Performance Factors - More balanced distribution
-        # The top 4 teams are now closer together
         team_performance_2024 = {
             1: 1.3,  # Red Bull Racing
             2: 1.2,  # Ferrari
@@ -980,9 +957,9 @@ class QualifyingPredictor:
             4: 1.15, # McLaren 
             5: 1.0,  # Aston Martin
             6: 0.9,  # Alpine
-            7: 0.95, # Williams (slight improvement)
-            8: 0.9,  # RB (AlphaTauri)
-            9: 0.85, # Sauber (Alfa Romeo)
+            7: 0.95, # Williams 
+            8: 0.9,  # Visa Cash app RB 
+            9: 0.85, # Sauber 
             10: 0.9, # Haas
         }
         
@@ -1049,7 +1026,6 @@ class QualifyingPredictor:
             # Get driver code for special handling
             driver_code = self.data_processor.driver_mapping.get_driver_code(driver_id)
             
-            # REBALANCED: Circuit-specific driver boosts with more realistic distribution
             circuit_specific_boosts = {
                 # Red Bull - Strong but more balanced
                 'VER': {
