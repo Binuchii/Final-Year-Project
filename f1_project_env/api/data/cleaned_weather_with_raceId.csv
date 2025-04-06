@@ -1,0 +1,49 @@
+meeting_key,circuit_short_name,location,country_name,date,weather_type,raceId
+1140,Sakhir,Sakhir,Bahrain,2023-02-23,No Rain,1053.0
+1140,Sakhir,Sakhir,Bahrain,2023-02-24,No Rain,1053.0
+1140,Sakhir,Sakhir,Bahrain,2023-02-25,No Rain,1053.0
+1141,Sakhir,Sakhir,Bahrain,2023-03-03,No Rain,1054.0
+1141,Sakhir,Sakhir,Bahrain,2023-03-04,No Rain,1054.0
+1141,Sakhir,Sakhir,Bahrain,2023-03-05,No Rain,1054.0
+1142,Jeddah,Jeddah,Saudi Arabia,2023-03-17,No Rain,1055.0
+1142,Jeddah,Jeddah,Saudi Arabia,2023-03-18,No Rain,1055.0
+1142,Jeddah,Jeddah,Saudi Arabia,2023-03-19,No Rain,1055.0
+1143,Melbourne,Melbourne,Australia,2023-03-31,Rain,1056.0
+1143,Melbourne,Melbourne,Australia,2023-04-01,Rain,1056.0
+1143,Melbourne,Melbourne,Australia,2023-04-02,No Rain,1056.0
+1207,Baku,Baku,Azerbaijan,2023-04-28,No Rain,1120.0
+1207,Baku,Baku,Azerbaijan,2023-04-29,Rain,1120.0
+1207,Baku,Baku,Azerbaijan,2023-04-30,No Rain,1120.0
+1208,Miami,Miami,United States,2023-05-05,No Rain,1121.0
+1208,Miami,Miami,United States,2023-05-06,No Rain,1121.0
+1208,Miami,Miami,United States,2023-05-07,No Rain,1121.0
+1210,Monte Carlo,Monaco,Monaco,2023-05-26,No Rain,1123.0
+1210,Monte Carlo,Monaco,Monaco,2023-05-27,No Rain,1123.0
+1210,Monte Carlo,Monaco,Monaco,2023-05-28,Rain,1123.0
+1211,Catalunya,Barcelona,Spain,2023-06-02,No Rain,1124.0
+1211,Catalunya,Barcelona,Spain,2023-06-03,Rain,1124.0
+1211,Catalunya,Barcelona,Spain,2023-06-04,No Rain,1124.0
+1212,Montreal,Montréal,Canada,2023-06-16,Rain,1125.0
+1212,Montreal,Montréal,Canada,2023-06-17,Rain,1125.0
+1212,Montreal,Montréal,Canada,2023-06-18,No Rain,1125.0
+1213,Spielberg,Spielberg,Austria,2023-06-30,No Rain,1126.0
+1213,Spielberg,Spielberg,Austria,2023-07-01,Rain,1126.0
+1213,Spielberg,Spielberg,Austria,2023-07-02,Rain,1126.0
+1214,Silverstone,Silverstone,Great Britain,2023-07-07,No Rain,1127.0
+1214,Silverstone,Silverstone,Great Britain,2023-07-08,Rain,1127.0
+1214,Silverstone,Silverstone,Great Britain,2023-07-09,No Rain,1127.0
+1215,Hungaroring,Budapest,Hungary,2023-07-21,Rain,1128.0
+1215,Hungaroring,Budapest,Hungary,2023-07-22,No Rain,1128.0
+1215,Hungaroring,Budapest,Hungary,2023-07-23,No Rain,1128.0
+1216,Spa-Francorchamps,Spa-Francorchamps,Belgium,2023-07-28,Rain,1129.0
+1216,Spa-Francorchamps,Spa-Francorchamps,Belgium,2023-07-29,Rain,1129.0
+1216,Spa-Francorchamps,Spa-Francorchamps,Belgium,2023-07-30,Rain,1129.0
+1217,Zandvoort,Zandvoort,Netherlands,2023-08-25,No Rain,1130.0
+1217,Zandvoort,Zandvoort,Netherlands,2023-08-26,Rain,1130.0
+1217,Zandvoort,Zandvoort,Netherlands,2023-08-27,Rain,1130.0
+1218,Monza,Monza,Italy,2023-09-01,No Rain,1131.0
+1218,Monza,Monza,Italy,2023-09-02,No Rain,1131.0
+1218,Monza,Monza,Italy,2023-09-03,No Rain,1131.0
+1219,Singapore,Marina Bay,Singapore,2023-09-15,No Rain,1132.0
+1219,Singapore,Marina Bay,Singapore,2023-09-16,No Rain,1132.0
+1219,Singapore,Marina Bay,Singapore,2023-09-17,No Rain,1132.0
