@@ -1,40 +1,34 @@
-// f1-prediction-app.js
-// React component for F1 qualifying prediction
-
 const { useState, useEffect } = React;
 const { 
   BarChart, Bar, LineChart, Line, XAxis, YAxis, 
   CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } = Recharts;
 
-// Base API URL - change this to match your backend location
 const API_BASE_URL = "http://localhost:5000";
 
-// Team colors for visualization
 const teamColors = {
-  'VER': '#3671C6', // Red Bull
+  'VER': '#3671C6',
   'PER': '#3671C6',
-  'HAM': '#27F4D2', // Mercedes
+  'HAM': '#27F4D2',
   'RUS': '#27F4D2',
-  'LEC': '#F91536', // Ferrari
+  'LEC': '#F91536',
   'SAI': '#F91536',
-  'NOR': '#FF8700', // McLaren
+  'NOR': '#FF8700',
   'PIA': '#FF8700',
-  'ALO': '#358C75', // Aston Martin
+  'ALO': '#358C75',
   'STR': '#358C75',
-  'GAS': '#2293D1', // Alpine
+  'GAS': '#2293D1',
   'OCO': '#2293D1',
-  'ALB': '#37BEDD', // Williams
+  'ALB': '#37BEDD',
   'SAR': '#37BEDD',
-  'TSU': '#5E8FAA', // RB (AlphaTauri)
+  'TSU': '#5E8FAA',
   'RIC': '#5E8FAA',
-  'BOT': '#C92D4B', // Sauber (Alfa Romeo)
+  'BOT': '#C92D4B',
   'ZHO': '#C92D4B',
-  'MAG': '#B6BABD', // Haas
+  'MAG': '#B6BABD',
   'HUL': '#B6BABD'
 };
 
-// Additional circuit data for visualization
 const circuitCharacteristics = {
   'Monaco': { sectors: [1.2, 0.9, 1.3], difficulty: 9.5, overtaking: 2 },
   'Silverstone': { sectors: [1.1, 1.4, 0.9], difficulty: 7.5, overtaking: 7 },
@@ -62,7 +56,6 @@ const circuitCharacteristics = {
   'Saudi Arabia': { sectors: [1.3, 1.2, 1.4], difficulty: 8.5, overtaking: 6.5 }
 };
 
-// Icon component for Flag
 const FlagIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
@@ -70,7 +63,6 @@ const FlagIcon = () => (
   </svg>
 );
 
-// Icon component for Trophy
 const TrophyIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-500">
     <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
@@ -82,7 +74,6 @@ const TrophyIcon = () => (
   </svg>
 );
 
-// Icon component for Car
 const CarIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500">
     <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"></path>
@@ -91,7 +82,6 @@ const CarIcon = () => (
   </svg>
 );
 
-// Icon component for Alert Triangle
 const AlertTriangleIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
@@ -100,7 +90,6 @@ const AlertTriangleIcon = () => (
   </svg>
 );
 
-// Icon component for Info
 const InfoIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10"></circle>
@@ -109,7 +98,6 @@ const InfoIcon = () => (
   </svg>
 );
 
-// Icon component for RefreshCw (loading spinner)
 const RefreshCwIcon = ({ className }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
@@ -130,7 +118,6 @@ const F1PredictionApp = () => {
   const [loadingCircuits, setLoadingCircuits] = useState(true);
   const [selectedCircuitData, setSelectedCircuitData] = useState(null);
 
-  // Load circuits from API on component mount
   useEffect(() => {
     const fetchCircuits = async () => {
       setLoadingCircuits(true);
@@ -152,12 +139,10 @@ const F1PredictionApp = () => {
     fetchCircuits();
   }, []);
 
-  // Update circuit data when circuit is selected
   useEffect(() => {
     if (selectedCircuit && circuits.length > 0) {
       const circuitObj = circuits.find(c => c.id === selectedCircuit);
       if (circuitObj) {
-        // Try to match with circuit characteristics
         const circuitName = circuitObj.name;
         if (circuitCharacteristics[circuitName]) {
           setSelectedCircuitData({
@@ -165,7 +150,6 @@ const F1PredictionApp = () => {
             ...circuitCharacteristics[circuitName]
           });
         } else {
-          // Default values if no match found
           setSelectedCircuitData({
             name: circuitName,
             sectors: [1.0, 1.0, 1.0],
@@ -179,13 +163,11 @@ const F1PredictionApp = () => {
     }
   }, [selectedCircuit, circuits]);
 
-  // Get prediction from the backend API
   const getPrediction = async (circuit) => {
     setLoading(true);
     setError(null);
     
     try {
-      // Make API call to your Python backend
       const response = await fetch(`${API_BASE_URL}/api/predict?circuit=${encodeURIComponent(circuit)}`);
       
       if (!response.ok) {
@@ -195,7 +177,6 @@ const F1PredictionApp = () => {
       
       const predictionData = await response.json();
       
-      // Handle possible error from backend
       if (predictionData.error) {
         throw new Error(predictionData.error);
       }
@@ -203,7 +184,6 @@ const F1PredictionApp = () => {
       setPredictionResults(predictionData);
       setConfidence(predictionData.confidence_score);
       
-      // Get circuit type from the response if available
       if (predictionData.circuit_info && predictionData.circuit_info.type) {
         const circuitType = predictionData.circuit_info.type;
         console.log(`Circuit type from API: ${circuitType}`);
@@ -224,17 +204,14 @@ const F1PredictionApp = () => {
     }
   };
 
-  // Format probability as percentage
   const formatProbability = (prob) => {
     return `${(prob * 100).toFixed(1)}%`;
   };
 
-  // Get driver team for color coding
   const getDriverTeam = (driverCode) => {
     return teamColors[driverCode] || "#999999";
   };
 
-  // Get circuit type icon
   const getCircuitTypeIcon = (circuitInfo) => {
     if (!circuitInfo) return '🏁';
     const type = circuitInfo.type || 'technical';
@@ -251,7 +228,6 @@ const F1PredictionApp = () => {
     return 'Technical Circuit';
   };
 
-  // Create chart data
   const createChartData = () => {
     if (!predictionResults) return [];
     
@@ -266,7 +242,6 @@ const F1PredictionApp = () => {
     <div className="flex flex-col bg-gray-50 p-6 rounded-lg shadow-lg w-full max-w-6xl mx-auto">
       <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">F1 Qualifying Prediction</h1>
       
-      {/* Circuit Selection */}
       <div className="flex flex-col md:flex-row items-center gap-4 mb-6">
         <div className="w-full md:w-2/3">
           <label htmlFor="circuit-select" className="block text-sm font-medium text-gray-700 mb-1">
@@ -312,7 +287,6 @@ const F1PredictionApp = () => {
         </button>
       </div>
 
-      {/* Error Message */}
       {error && (
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
           <div className="flex items-center">
@@ -322,7 +296,6 @@ const F1PredictionApp = () => {
         </div>
       )}
 
-      {/* Circuit Info */}
       {selectedCircuitData && (
         <div className="mb-6 bg-white p-4 rounded-lg shadow border border-gray-200">
           <div className="flex justify-between items-center">
@@ -391,7 +364,6 @@ const F1PredictionApp = () => {
         </div>
       )}
 
-      {/* Results Section */}
       {predictionResults && (
         <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
           <h2 className="text-2xl font-bold mb-4 text-center">
@@ -421,7 +393,6 @@ const F1PredictionApp = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Top 5 List */}
             <div>
               <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                 <TrophyIcon />
@@ -451,7 +422,6 @@ const F1PredictionApp = () => {
               </div>
             </div>
 
-            {/* Probability Chart */}
             <div>
               <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                 <CarIcon />
@@ -476,7 +446,7 @@ const F1PredictionApp = () => {
                         <rect 
                           key={`rect-${index}`} 
                           fill={entry.fill} 
-                          x={0} y={0} width={0} height={0} // These will be calculated by recharts
+                          x={0} y={0} width={0} height={0}
                         />
                       ))}
                     </Bar>
@@ -491,7 +461,6 @@ const F1PredictionApp = () => {
   );
 };
 
-// Render the app
 ReactDOM.render(
   <F1PredictionApp />,
   document.getElementById('root')

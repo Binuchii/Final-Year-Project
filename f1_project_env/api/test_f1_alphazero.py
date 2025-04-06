@@ -7,13 +7,10 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
 
-# Update imports to use absolute imports
 from mcts_and_nn import MCTSConfig, ModelConfig, SimplifiedF1Net, MCTS
 from QualifyingPredictor import QualifyingPredictor, PredictorConfig
 from f1_data_processing import F1DataProcessor, F1Environment
 from F1PredictionEvaluator import F1PredictionEvaluator, convert_predictions_to_evaluator_format 
-# Remove this import and implement locally
-# from F1PredictionEvaluator import create_actual_results_from_data
 
 # Set up logging
 logging.basicConfig(
@@ -22,21 +19,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Implement the function locally to avoid import issues
 def create_actual_results_from_data(data_processor, year=2023):
-    """
-    Create actual qualifying results data from F1 data processor.
-    
-    Args:
-        data_processor: F1DataProcessor instance
-        year: Year to filter results by
-        
-    Returns:
-        List of actual qualifying results in the format needed by the evaluator
-    """
+    """Create actual qualifying results data from F1 data processor."""
     actual_results = []
     
-    # Get qualifying data
     try:
         qualifying_data = data_processor.kaggle_data.get('qualifying', pd.DataFrame())
         races_data = data_processor.race_data
@@ -49,7 +35,6 @@ def create_actual_results_from_data(data_processor, year=2023):
         if 'year' in races_data.columns:
             year_races = races_data[races_data['year'] == year]
         else:
-            # If year not available, use all races
             year_races = races_data
         
         # Process each race
@@ -57,21 +42,16 @@ def create_actual_results_from_data(data_processor, year=2023):
             race_id = race['raceId']
             circuit_name = race['name']
             
-            # Get qualifying results for this race
             race_qualifying = qualifying_data[qualifying_data['raceId'] == race_id]
             
             if race_qualifying.empty:
                 continue
             
-            # Sort by qualifying position
             race_qualifying = race_qualifying.sort_values('position')
             
-            # Create results entry
             results = []
             for _, quali in race_qualifying.iterrows():
                 driver_id = quali['driverId']
-                
-                # Get driver code from mapping
                 driver_code = data_processor.driver_mapping.get_driver_code(driver_id)
                 
                 if driver_code:
@@ -82,33 +62,28 @@ def create_actual_results_from_data(data_processor, year=2023):
                             'position': position
                         })
                     except (ValueError, TypeError):
-                        # Skip if position can't be converted to int
                         pass
             
-            # Add to actual results list
             if results:
                 actual_results.append({
                     'circuit': circuit_name,
                     'results': results
                 })
         
-        # Log number of races found
         logger.info(f"Found {len(actual_results)} races with qualifying data for year {year}")
         
-        # If no results found for specific year, try to generate some mock data
+        # Generate mock data if no actual data found
         if not actual_results:
-            # Generate mock data for testing
             logger.warning(f"No actual qualifying data found for {year}, generating mock data")
             
-            # Get available circuits and driver IDs
-            circuits = list(data_processor.circuits_data.keys())[:5]  # Use first 5 circuits
+            circuits = list(data_processor.circuits_data.keys())[:5]
             driver_ids = data_processor.driver_mapping.get_current_driver_ids()
             
             for circuit in circuits:
                 results = []
                 positions = list(range(1, min(len(driver_ids) + 1, 21)))
                 
-                for i, driver_id in enumerate(driver_ids[:20]):  # Max 20 drivers
+                for i, driver_id in enumerate(driver_ids[:20]):
                     driver_code = data_processor.driver_mapping.get_driver_code(driver_id)
                     if driver_code:
                         results.append({
@@ -139,12 +114,10 @@ class F1AlphaZeroTester:
         self.data_processor = F1DataProcessor(data_dir)
         self.env = F1Environment(self.data_processor)
         
-        # Initialize configurations
         self.model_config = ModelConfig()
         self.mcts_config = MCTSConfig()
         self.predictor_config = PredictorConfig()
         
-        # Initialize predictor
         self.predictor = QualifyingPredictor(
             data_processor=self.data_processor,
             config=self.predictor_config,
@@ -152,22 +125,18 @@ class F1AlphaZeroTester:
             mcts_config=self.mcts_config
         )
         
-        # Initialize evaluator
         self.evaluator = F1PredictionEvaluator()
         
     def test_data_processing(self):
         """Test data processing pipeline"""
         logger.info("Testing data processing...")
         
-        # Test driver mapping
         driver_ids = self.data_processor.driver_mapping.get_current_driver_ids()
         logger.info(f"Found {len(driver_ids)} current drivers")
         
-        # Test circuit data
         circuits = list(self.data_processor.circuits_data.keys())
         logger.info(f"Loaded {len(circuits)} circuits")
         
-        # Test state representation
         race_ids = self.data_processor.race_data['raceId'].unique()
         if len(race_ids) > 0:
             test_race_id = race_ids[0]
@@ -180,14 +149,12 @@ class F1AlphaZeroTester:
         """Test model training"""
         logger.info("Testing model training...")
         
-        # Create sample training data
         num_samples = 200
         state_size = self.model_config.state_size
         train_states = torch.randn(num_samples, state_size)
         train_targets = torch.zeros(num_samples, 20)
         train_targets[:, 0] = 1  # Dummy targets
         
-        # Training loop
         for epoch in range(num_epochs):
             loss_dict = self.predictor.train_step(train_states, train_targets)
             logger.info(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss_dict['total_loss']:.4f}")
@@ -213,7 +180,6 @@ class F1AlphaZeroTester:
             self._print_predictions(predictions)
             results[circuit] = predictions
             
-        # Save results
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         result_path = os.path.join(self.results_dir, f"test_predictions_{timestamp}.txt")
         
@@ -230,16 +196,7 @@ class F1AlphaZeroTester:
         return True
     
     def test_with_metrics(self, test_circuits: List[str] = None, actual_year: int = 2024):
-        """
-        Test qualifying predictions with precision, recall, and F1 metrics.
-        
-        Args:
-            test_circuits: List of circuits to test predictions for
-            actual_year: Year to use for actual results comparison
-            
-        Returns:
-            Boolean indicating success
-        """
+        """Test qualifying predictions with precision, recall, and F1 metrics."""
         if test_circuits is None:
             test_circuits = [
                 'australian', 'austrian', 'azerbaijan', 'bahrain', 'belgian', 
@@ -250,7 +207,6 @@ class F1AlphaZeroTester:
                 
         logger.info("Testing qualifying predictions with metrics evaluation...")
         
-        # Get predictions for all circuits
         predictions = []
         for circuit in test_circuits:
             logger.info(f"\nPredicting qualifying for {circuit.upper()}")
@@ -261,22 +217,16 @@ class F1AlphaZeroTester:
                 predictions.append(prediction)
                 self._print_predictions(prediction)
         
-        # Create actual results data for comparison
-        # Using our locally defined function now
         actual_results = create_actual_results_from_data(self.data_processor, year=actual_year)
         
         if not actual_results:
             logger.warning("No actual results available for evaluation. Using mock data for testing.")
-            # Create simple mock data for each circuit in predictions
             for pred in predictions:
                 circuit = pred.get('circuit', '')
                 mock_results = []
                 
-                # Convert top5 predictions to mock actual results
-                # For testing, we'll say predictions were almost right
                 for driver_pred in pred.get('top5', []):
                     driver_code = driver_pred.get('driver_code', '')
-                    # Randomly shift position by -1, 0, or 1
                     position = max(1, driver_pred.get('position', 0) + np.random.randint(-1, 2))
                     
                     if driver_code:
@@ -285,7 +235,6 @@ class F1AlphaZeroTester:
                             'position': position
                         })
                 
-                # Add some more drivers if we have fewer than 10
                 if len(mock_results) < 10:
                     additional_drivers = ['ALO', 'ALB', 'BOT', 'HUL', 'TSU', 'ZHO', 'GAS', 'STR', 'MAG', 'RIC']
                     for i, driver in enumerate(additional_drivers):
@@ -302,37 +251,22 @@ class F1AlphaZeroTester:
             
             logger.info(f"Created mock data for {len(actual_results)} circuits")
             
-        # Match circuit names between predictions and actual results
-        # This is important because circuit names might not be exactly the same
         self._align_circuit_names(predictions, actual_results)
-            
-        # Format predictions for evaluator
         formatted_predictions = convert_predictions_to_evaluator_format(predictions)
-        
-        # Evaluate predictions against actual results
-        metrics = self.evaluator.evaluate_qualifying_predictions(
-            formatted_predictions, actual_results)
-            
-        # Compare with baselines
-        comparison = self.evaluator.compare_with_baselines(
-            formatted_predictions, actual_results)
-            
-        # Generate and print report
+        metrics = self.evaluator.evaluate_qualifying_predictions(formatted_predictions, actual_results)
+        comparison = self.evaluator.compare_with_baselines(formatted_predictions, actual_results)
         report = self.evaluator.generate_report(comparison)
         logger.info("\nEvaluation Report:\n" + report)
         
-        # Save results
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         result_path = os.path.join(self.results_dir, f"evaluation_report_{timestamp}.txt")
         with open(result_path, 'w') as f:
             f.write(report)
             
-        # Save detailed metrics as JSON for later analysis
         try:
             import json
             metrics_path = os.path.join(self.results_dir, f"detailed_metrics_{timestamp}.json")
             
-            # Convert any NumPy values to Python types for JSON serialization
             def convert_numpy(obj):
                 if isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64)):
                     return int(obj)
@@ -352,16 +286,8 @@ class F1AlphaZeroTester:
         return True
     
     def _align_circuit_names(self, predictions: List[Dict], actual_results: List[Dict]):
-        """
-        Align circuit names between predictions and actual results.
-        
-        Args:
-            predictions: List of prediction dictionaries
-            actual_results: List of actual result dictionaries
-        """
-        # Create mapping of standardized circuit names
+        """Align circuit names between predictions and actual results."""
         circuit_mapping = {
-            # Common variations
             'emilia romagna': ['imola', 'emilia'],
             'mexico city': ['mexican', 'mexico'],
             'monaco': ['monte carlo', 'monte'],
@@ -382,7 +308,6 @@ class F1AlphaZeroTester:
             'chinese': ['shanghai']
         }
         
-        # Create a standardization function
         def standardize_circuit(name):
             name_lower = name.lower()
             for standard, variants in circuit_mapping.items():
@@ -390,12 +315,10 @@ class F1AlphaZeroTester:
                     return standard
             return name_lower
             
-        # Standardize circuit names in predictions
         for pred in predictions:
             if 'circuit' in pred:
                 pred['circuit'] = standardize_circuit(pred['circuit'])
                 
-        # Standardize circuit names in actual results
         for actual in actual_results:
             if 'circuit' in actual:
                 actual['circuit'] = standardize_circuit(actual['circuit'])
@@ -404,10 +327,7 @@ class F1AlphaZeroTester:
         """Test MCTS search functionality"""
         logger.info("Testing MCTS search...")
         
-        # Create a sample state
         state = np.random.randn(self.model_config.state_size)
-        
-        # Perform MCTS search
         action_probs = self.predictor.mcts.search(state)
         
         logger.info(f"MCTS search completed. Action probabilities shape: {action_probs.shape}")
@@ -435,10 +355,7 @@ class F1AlphaZeroTester:
         logger.info("-" * 80)
     
     def check_available_circuits(self):
-        """
-        Check which circuits are available in the circuits_data dictionary.
-        This helps diagnose naming issues.
-        """
+        """Check which circuits are available in the circuits_data dictionary."""
         print("\nAvailable circuits in dataset:")
         print("-" * 50)
         
@@ -464,7 +381,6 @@ class F1AlphaZeroTester:
             status = "✓" if found else "✗"
             print(f"{status} '{name}' → '{std_name}'")
         
-        # Test all standardization for all available test circuits
         print("\nTest all circuits in the test suite:")
         print("-" * 50)
         
@@ -484,11 +400,7 @@ class F1AlphaZeroTester:
         return True
     
     def get_standardized_circuit_name(self, circuit_name: str) -> str:
-        """
-        Delegate to the predictor's method to standardize circuit names.
-        This is needed because the check_available_circuits method uses this
-        method directly.
-        """
+        """Delegate to the predictor's method to standardize circuit names."""
         return self.predictor.get_standardized_circuit_name(circuit_name)
     
     def run_all_tests(self, with_metrics: bool = True):
@@ -503,7 +415,6 @@ class F1AlphaZeroTester:
                 ('MCTS Search', self.test_mcts_search)
             ]
             
-            # Add metrics test if requested
             if with_metrics:
                 tests.append(('Metrics Evaluation', self.test_with_metrics))
             
@@ -518,7 +429,6 @@ class F1AlphaZeroTester:
                     logger.error(f"{test_name} test failed with error: {str(e)}")
                     results.append((test_name, False))
                     
-            # Print summary
             logger.info("\nTest Summary:")
             logger.info("-" * 50)
             for test_name, success in results:
@@ -531,13 +441,9 @@ class F1AlphaZeroTester:
 
 
 def main():
-    # Update this path to your data directory
     data_dir = r"C:\Users\Albin Binu\Documents\College\Year 4\Final Year Project\f1_project_env\api\data"
     
-    # Initialize and run tests
     tester = F1AlphaZeroTester(data_dir)
-    
-    # Optionally enable metrics evaluation
     with_metrics = True
     tester.run_all_tests(with_metrics=with_metrics)
 
