@@ -2,7 +2,6 @@ import sys
 import logging
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
-import logging
 import os
 from pathlib import Path
 import torch
@@ -19,6 +18,64 @@ CORS(app)  # Enable CORS for all routes
 
 predictor = None
 data_processor = None
+
+# Circuit name mapping - centralized in one location
+CIRCUIT_NAME_MAPPING = {
+    # Original mappings
+    'emilia romagna': 'emilia',
+    'mexico city': 'mexico',
+    'monaco': 'monaco',  
+    'saudi arabian': 'saudi',
+    'united states': 'us',
+    
+    # Additional mappings for possible variations
+    'bahrain': 'bahrain',
+    'jeddah': 'saudi',
+    'baku': 'azerbaijan', 
+    'melbourne': 'australian',
+    'albert park': 'australian',
+    'catalunya': 'spanish',
+    'barcelona': 'spanish',
+    'monte carlo': 'monaco',
+    'silverstone': 'british',
+    'spielberg': 'austrian',
+    'red bull ring': 'austrian',
+    'hungaroring': 'hungarian',
+    'spa': 'belgian',
+    'monza': 'italian',
+    'marina bay': 'singapore',
+    'suzuka': 'japanese',
+    'losail': 'qatar',
+    'cota': 'us',
+    'circuit of the americas': 'us',
+    'autodromo hermanos rodriguez': 'mexican',
+    'interlagos': 'brazilian',
+    'jose carlos pace': 'brazilian',
+    'yas marina': 'abu',
+    'miami international': 'miami',
+    'zandvoort': 'dutch',
+    'las vegas': 'vegas'
+}
+
+# Circuit types mapping - also centralized
+CIRCUIT_TYPES = {
+    'street': [
+        'monaco', 'singapore', 'azerbaijan', 'saudi', 'las vegas',
+        'baku', 'jeddah', 'marina bay'
+    ],
+    'high_speed': [
+        'monza', 'spa', 'austria', 'silverstone', 'british', 'miami',
+        'belgian', 'bahrain', 'canadian', 'italian', 'australian',
+        'red bull ring', 'spielberg', 'montreal', 'interlagos', 'brazilian'
+    ],
+    'technical': [
+        'hungary', 'barcelona', 'spanish', 'zandvoort', 'dutch',
+        'japan', 'japanese', 'suzuka', 'abu', 'yas marina', 'mexican',
+        'mexico city', 'imola', 'emilia', 'chinese', 'shanghai',
+        'portuguese', 'portimao', 'french', 'paul ricard', 'qatar',
+        'hungarian', 'sochi', 'russian', 'catalonia'
+    ]
+}
 
 # Initialize before app starts running
 def initialize_app():
@@ -126,46 +183,9 @@ def get_circuits():
         }
         
         # Add special cases with better display names
-        name_mapping = {
-            # Original mappings
-            'emilia romagna': 'emilia',
-            'mexico city': 'mexico',
-            'monaco': 'monaco',      # Changed from 'monaco gp' to 'monte' to match the circuits_data
-            'saudi arabian': 'saudi',
-            'united states': 'us',  # Changed from 'us' to match the circuits_data keys
-            
-            # Add additional mappings for possible variations
-            'bahrain': 'bahrain',
-            'jeddah': 'saudi',
-            'baku': 'azerbaijan', 
-            'melbourne': 'australian',
-            'albert park': 'australian',
-            'catalunya': 'spanish',
-            'barcelona': 'spanish',
-            'monte carlo': 'monaco',
-            'silverstone': 'british',
-            'spielberg': 'austrian',
-            'red bull ring': 'austrian',
-            'hungaroring': 'hungarian',
-            'spa': 'belgian',
-            'monza': 'italian',
-            'marina bay': 'singapore',
-            'suzuka': 'japanese',
-            'losail': 'qatar',
-            'cota': 'us',
-            'circuit of the americas': 'us',
-            'autodromo hermanos rodriguez': 'mexican',
-            'interlagos': 'brazilian',
-            'jose carlos pace': 'brazilian',
-            'yas marina': 'abu',
-            'miami international': 'miami',
-            'zandvoort': 'dutch',
-            'las vegas': 'vegas'
-        }
-        
         for circuit in available_circuits:
-            if circuit in name_mapping:
-                standardized_names[circuit] = name_mapping[circuit]
+            if circuit in CIRCUIT_NAME_MAPPING:
+                standardized_names[circuit] = CIRCUIT_NAME_MAPPING[circuit].title()
         
         # Return both the internal name and display name
         result = [
@@ -202,7 +222,7 @@ def predict():
         # Enhance response with additional circuit info
         prediction['circuit_info'] = {
             'name': circuit,
-            'type': _get_circuit_type(circuit)
+            'type': get_circuit_type(circuit)
         }
         
         return jsonify(prediction)
@@ -212,32 +232,24 @@ def predict():
         return jsonify({"error": str(e)}), 500
 
 
-def _get_circuit_type(circuit_name: str) -> str:
-    """Get circuit type using the method from QualifyingPredictor"""
+def get_circuit_type(circuit_name: str) -> str:
+    """Get circuit type from centralized mapping."""
     try:
-        return predictor._get_circuit_type(circuit_name)
+        # Try to use predictor's method if available
+        if predictor and hasattr(predictor, '_get_circuit_type'):
+            return predictor._get_circuit_type(circuit_name)
     except:
-        # Fallback if method is not accessible
-        circuit_types = {
-            'street': [
-                'monaco', 'singapore', 'azerbaijan', 'saudi', 'las vegas',
-                'baku', 'jeddah', 'marina bay'
-            ],
-            'high_speed': [
-                'monza', 'spa', 'austria', 'silverstone', 'british', 'miami',
-                'belgian', 'bahrain', 'canadian', 'italian', 'australian',
-                'red bull ring', 'spielberg', 'montreal', 'interlagos', 'brazilian'
-            ]
-        }
+        pass
         
-        normalized_name = circuit_name.lower()
-        
-        for circuit_type, circuits in circuit_types.items():
-            if any(c in normalized_name for c in circuits):
-                return circuit_type
-        
-        # Default to technical if unknown
-        return 'technical'
+    # Fallback to local lookup
+    normalized_name = circuit_name.lower()
+    
+    for circuit_type, circuits in CIRCUIT_TYPES.items():
+        if any(c in normalized_name for c in circuits):
+            return circuit_type
+    
+    # Default to technical if unknown
+    return 'technical'
 
 
 if __name__ == '__main__':
@@ -248,4 +260,4 @@ if __name__ == '__main__':
         
     # Set the port from environment variable or default to 5000
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port)

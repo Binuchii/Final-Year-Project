@@ -224,97 +224,6 @@ class F1DataProcessor:
             data['weather_numerical'] = data['weather_type'].map(weather_mapping)
         return data
     
-    def standardize_driver_data(self, df: pd.DataFrame, id_column: str = None) -> pd.DataFrame:
-        """
-        Standardize driver information in a DataFrame using the driver mapping.
-        
-        Args:
-            df (pd.DataFrame): Input DataFrame
-            id_column (str): Name of the column containing driver IDs
-            
-        Returns:
-            pd.DataFrame: DataFrame with standardized driver information
-        """
-        if id_column and id_column in df.columns:
-            df = df.copy()
-            df['DriverCode'] = df[id_column].apply(self.driver_mapping.get_driver_code)
-            df['DriverName'] = df[id_column].apply(self.driver_mapping.get_driver_name)
-            df['DriverNumber'] = df[id_column].apply(self.driver_mapping.get_driver_number)
-        return df
-
-    def _validate_numeric_columns(self, df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
-        """Validate and convert columns to numeric type."""
-        # Create a copy of the DataFrame to avoid chained assignment warnings
-        df = df.copy()
-        
-        for col in columns:
-            if col in df.columns:
-                # Convert to numeric
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                
-                # Calculate mean for non-null values
-                col_mean = df[col].mean()
-                
-                # Fill NA values with mean or 0
-                df[col] = df[col].fillna(col_mean if pd.notnull(col_mean) else 0)
-        
-        return df
-
-    def validate_circuit_data(self):
-        """
-        Validate circuit data loading and processing.
-        """
-        print("\nValidating circuit data:")
-        print(f"Number of circuits loaded: {len(self.circuits_data)}")
-        
-        for circuit_name, data in self.circuits_data.items():
-            print(f"\nCircuit: {circuit_name}")
-            print(f"Columns: {data.columns.tolist()}")
-            print(f"Number of rows: {len(data)}")
-            
-            # Check sector time columns
-            sector_cols = [col for col in data.columns if 'sector' in col.lower()]
-            if sector_cols:
-                print("\nSector time statistics:")
-                for col in sector_cols:
-                    mean_time = data[col].mean()
-                    std_time = data[col].std()
-                    print(f"{col}:")
-                    print(f"  Mean: {mean_time:.3f}")
-                    print(f"  Std:  {std_time:.3f}")
-            else:
-                print("Warning: No sector time columns found")
-
-    def _load_and_clean_circuit_data(self):
-        """
-        Enhanced circuit data loading with validation.
-        """
-        try:
-            print("\nLoading circuit data:")
-            print(f"Circuits folder: {self.circuits_folder}")
-            
-            for filename in os.listdir(self.circuits_folder):
-                if filename.endswith(".csv"):
-                    circuit_name = filename.split(" ")[0].lower()
-                    file_path = os.path.join(self.circuits_folder, filename)
-                    
-                    print(f"\nProcessing {filename}:")
-                    df = pd.read_csv(file_path)
-                    print(f"Original columns: {df.columns.tolist()}")
-                    print(f"Original shape: {df.shape}")
-                    
-                    # Clean the data
-                    cleaned_df = self._clean_circuit_data(df)
-                    print(f"Cleaned shape: {cleaned_df.shape}")
-                    
-                    self.circuits_data[circuit_name] = cleaned_df
-                    
-            # Validate loaded data
-            self.validate_circuit_data()
-            
-        except Exception as e:
-            print(f"Error loading circuit data: {str(e)}")
-
     def _clean_circuit_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean circuit-specific data."""
         if df is not None:
@@ -387,7 +296,16 @@ class F1DataProcessor:
             
             # Validate numeric columns
             numeric_columns = ['position', 'points_AtRace', 'constructor_points', 'wins']
-            self.race_data = self._validate_numeric_columns(self.race_data, numeric_columns)
+            # Inline the _validate_numeric_columns functionality
+            self.race_data = self.race_data.copy()
+            for col in numeric_columns:
+                if col in self.race_data.columns:
+                    # Convert to numeric
+                    self.race_data[col] = pd.to_numeric(self.race_data[col], errors='coerce')
+                    # Calculate mean for non-null values
+                    col_mean = self.race_data[col].mean()
+                    # Fill NA values with mean or 0
+                    self.race_data[col] = self.race_data[col].fillna(col_mean if pd.notnull(col_mean) else 0)
 
         # Merge constructor data
         if all(k in self.kaggle_data for k in ["constructor_standings", "teams", "constructor_results"]):

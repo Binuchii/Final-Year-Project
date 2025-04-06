@@ -4,7 +4,6 @@ import logging
 from typing import Dict, List, Tuple, Optional, Union
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, roc_curve, auc
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 import seaborn as sns
 from collections import defaultdict
 import os
@@ -81,11 +80,6 @@ class F1PredictionEvaluator:
         metrics["position_errors"] = position_errors
         metrics["raw_position_errors"] = [p - a for p, a in zip(y_pred, y_true)]
         
-        # Store actual and predicted positions for confusion matrix
-        metrics["y_true"] = y_true
-        metrics["y_pred"] = y_pred
-        metrics["drivers"] = drivers
-        
         # Calculate Top-N metrics
         for n in [3, 5, 10]:
             # For classification metrics, we need binary labels
@@ -114,7 +108,6 @@ class F1PredictionEvaluator:
                     metrics[f"top{n}_f1"] = f1_score(y_true_topn, y_pred_topn, zero_division=0)
                 
                 # Store probabilities for ROC curve calculation
-                # For now we use binary classification output directly
                 metrics[f"top{n}_true"] = y_true_topn
                 metrics[f"top{n}_pred"] = y_pred_topn
                 
@@ -132,7 +125,8 @@ class F1PredictionEvaluator:
         # Add confusion matrix for top 3, 5, 10 as a dictionary for easy serialization
         for n in [3, 5, 10]:
             try:
-                metrics[f"top{n}_confusion_matrix"] = self._calculate_confusion_matrix(y_true, y_pred, n)
+                metrics[f"top{n}_confusion_matrix"] = self._calculate_confusion_matrix(
+                    metrics[f"top{n}_true"], metrics[f"top{n}_pred"])
             except Exception as e:
                 logger.error(f"Error calculating confusion matrix for Top-{n}: {e}")
         
@@ -159,8 +153,6 @@ class F1PredictionEvaluator:
         all_metrics = []
         combined_position_errors = []
         combined_raw_errors = []
-        combined_y_true = []
-        combined_y_pred = []
         combined_top3_true = []
         combined_top3_pred = []
         combined_top5_true = []
@@ -206,9 +198,6 @@ class F1PredictionEvaluator:
                     combined_position_errors.extend(metrics['position_errors'])
                 if 'raw_position_errors' in metrics:
                     combined_raw_errors.extend(metrics['raw_position_errors'])
-                if 'y_true' in metrics and 'y_pred' in metrics:
-                    combined_y_true.extend(metrics['y_true'])
-                    combined_y_pred.extend(metrics['y_pred'])
                 if 'top3_true' in metrics and 'top3_pred' in metrics:
                     combined_top3_true.extend(metrics['top3_true'])
                     combined_top3_pred.extend(metrics['top3_pred'])
@@ -223,7 +212,7 @@ class F1PredictionEvaluator:
         
         aggregate_metrics = {}
         metric_keys = [k for k in all_metrics[0].keys() if k != 'circuit' and not k.endswith('confusion_matrix') 
-                      and k not in ['position_errors', 'raw_position_errors', 'y_true', 'y_pred', 'drivers',
+                      and k not in ['position_errors', 'raw_position_errors',
                                   'top3_true', 'top3_pred', 'top5_true', 'top5_pred', 'top10_true', 'top10_pred']]
         
         for key in metric_keys:
@@ -238,8 +227,6 @@ class F1PredictionEvaluator:
         # Store combined data for visualizations
         aggregate_metrics["combined_position_errors"] = combined_position_errors
         aggregate_metrics["combined_raw_errors"] = combined_raw_errors
-        aggregate_metrics["combined_y_true"] = combined_y_true
-        aggregate_metrics["combined_y_pred"] = combined_y_pred
         aggregate_metrics["combined_top3_true"] = combined_top3_true
         aggregate_metrics["combined_top3_pred"] = combined_top3_pred
         aggregate_metrics["combined_top5_true"] = combined_top5_true
@@ -328,27 +315,18 @@ class F1PredictionEvaluator:
         
         return comparison
     
-    def _calculate_confusion_matrix(self, y_true: List[int], y_pred: List[int], threshold: int) -> Dict[str, int]:
+    def _calculate_confusion_matrix(self, y_true: List[int], y_pred: List[int]) -> Dict[str, int]:
         """
         Calculate confusion matrix for binary classification based on Top-N positions.
         Handles single class case properly to avoid sklearn warnings.
         
         Args:
-            y_true: List of actual positions
-            y_pred: List of predicted positions
-            threshold: Position threshold for binary classification (e.g., top 3, top 5)
+            y_true: List of binary labels for actual positions (1 for Top-N, 0 otherwise)
+            y_pred: List of binary labels for predicted positions (1 for Top-N, 0 otherwise)
             
         Returns:
             Dictionary with confusion matrix values
         """
-        # Convert to binary classification based on threshold
-        y_true_bin = [1 if pos <= threshold else 0 for pos in y_true]
-        y_pred_bin = [1 if pos <= threshold else 0 for pos in y_pred]
-        
-        # Check if we have only one class in either true or predicted
-        unique_true = set(y_true_bin)
-        unique_pred = set(y_pred_bin)
-        
         # Initialize confusion matrix values
         cm_dict = {
             "true_negative": 0,
@@ -357,10 +335,15 @@ class F1PredictionEvaluator:
             "true_positive": 0
         }
         
-        # If we have only one class, we need to handle it specially
-        if len(unique_true) == 1 or len(unique_pred) == 1:
+        # Check if we have only one class in either true or predicted
+        unique_true = set(y_true)
+        unique_pred = set(y_pred)
+        
+        # If we have only one class, or if there are very few samples, 
+        # manually calculate the confusion matrix
+        if len(unique_true) == 1 or len(unique_pred) == 1 or len(y_true) < 10:
             # Count manually
-            for true_val, pred_val in zip(y_true_bin, y_pred_bin):
+            for true_val, pred_val in zip(y_true, y_pred):
                 if true_val == 0 and pred_val == 0:
                     cm_dict["true_negative"] += 1
                 elif true_val == 0 and pred_val == 1:
@@ -372,14 +355,15 @@ class F1PredictionEvaluator:
         else:
             # Use sklearn's confusion_matrix for the general case
             try:
-                cm = confusion_matrix(y_true_bin, y_pred_bin)
+                cm = confusion_matrix(y_true, y_pred)
                 cm_dict["true_negative"] = int(cm[0, 0])
                 cm_dict["false_positive"] = int(cm[0, 1])
                 cm_dict["false_negative"] = int(cm[1, 0])
                 cm_dict["true_positive"] = int(cm[1, 1])
             except Exception as e:
                 # Fall back to manual calculation if sklearn fails
-                for true_val, pred_val in zip(y_true_bin, y_pred_bin):
+                logger.warning(f"Falling back to manual confusion matrix calculation: {e}")
+                for true_val, pred_val in zip(y_true, y_pred):
                     if true_val == 0 and pred_val == 0:
                         cm_dict["true_negative"] += 1
                     elif true_val == 0 and pred_val == 1:
@@ -507,7 +491,6 @@ class F1PredictionEvaluator:
         
         return report
     
-    # New methods for thesis visualizations
     def store_training_history(self, history: Dict[str, List[float]]):
         """
         Store training history for later visualization
@@ -540,10 +523,7 @@ class F1PredictionEvaluator:
         self.plot_learning_rate_analysis()
     
     def plot_training_convergence(self):
-        """
-        Generate training convergence plot showing loss curves over epochs.
-        This addresses the first visualization requirement for section 5.1.
-        """
+        """Generate training convergence plot showing loss curves over epochs."""
         if not self.training_history:
             logger.warning("No training history available to plot")
             return
@@ -588,10 +568,7 @@ class F1PredictionEvaluator:
         logger.info(f"Training convergence plot saved to {self.visualization_dir}")
     
     def plot_learning_rate_analysis(self):
-        """
-        Generate plot showing model performance against different learning rates.
-        This addresses the second visualization requirement for section 5.1.
-        """
+        """Generate plot showing model performance against different learning rates."""
         if not self.learning_rate_results:
             logger.warning("No learning rate results available to plot")
             return
@@ -633,44 +610,22 @@ class F1PredictionEvaluator:
         logger.info(f"Learning rate analysis plot saved to {self.visualization_dir}")
     
     def generate_comparison_visualizations(self):
-        """
-        Generate all visualizations for model comparisons.
-        Includes visualizations for sections 5.2 and 5.3 of the thesis.
-        """
+        """Generate all visualizations for model comparisons."""
         if not self.comparison_results:
             logger.warning("No comparison results available for visualization")
             return
         
-        # Create a timestamp for this visualization run
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # 1. Metrics Radar Chart (Section 5.2)
-        self.plot_metrics_radar_chart()
-        
-        # 2. Confusion Matrix Heatmap (Section 5.2)
-        if 'model' in self.comparison_results:
-            self.plot_confusion_matrix_heatmap(self.comparison_results['model'])
-        
-        # 3. Position Error Distribution (Section 5.2)
-        if 'model' in self.comparison_results:
-            self.plot_position_error_distribution(self.comparison_results['model'])
-        
-        # 4. Bar Chart Comparison (Section 5.3)
+        # Create visualizations in order of simplicity
         self.plot_bar_chart_comparison()
         
-        # 5. ROC Curves (Section 5.3)
-        self.plot_roc_curves()
-        
-        # 6. Cumulative Position Error (Section 5.3)
-        self.plot_cumulative_position_error()
+        if 'model' in self.comparison_results:
+            self.plot_position_error_distribution(self.comparison_results['model'])
+            self.plot_metrics_radar_chart()
         
         logger.info(f"All comparison visualizations saved to {self.visualization_dir}")
     
     def plot_metrics_radar_chart(self):
-        """
-        Create a radar/spider chart showing multiple performance metrics simultaneously.
-        This addresses the first visualization requirement for section 5.2.
-        """
+        """Create a radar/spider chart showing multiple performance metrics simultaneously."""
         if not self.comparison_results or 'model' not in self.comparison_results:
             logger.warning("No model results available for radar chart")
             return
@@ -757,68 +712,8 @@ class F1PredictionEvaluator:
         
         logger.info(f"Metrics radar chart saved to {self.visualization_dir}")
     
-    def plot_confusion_matrix_heatmap(self, model_metrics: Dict):
-        """
-        Visualize true vs. predicted qualifying positions as a color-coded heatmap.
-        This addresses the second visualization requirement for section 5.2.
-        """
-        if not 'combined_y_true' in model_metrics or not 'combined_y_pred' in model_metrics:
-            logger.warning("No position data available for confusion matrix")
-            return
-        
-        y_true = model_metrics['combined_y_true']
-        y_pred = model_metrics['combined_y_pred']
-        
-        # Create a confusion matrix for positions 1-20
-        max_pos = max(max(y_true), max(y_pred))
-        cm = np.zeros((max_pos, max_pos), dtype=int)
-        
-        for true_pos, pred_pos in zip(y_true, y_pred):
-            cm[true_pos-1, pred_pos-1] += 1
-        
-        # Create a normalized confusion matrix (by true position)
-        cm_norm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        cm_norm = np.nan_to_num(cm_norm)  # Replace NaNs with zeros
-        
-        # Create the heatmap
-        plt.figure(figsize=(12, 10))
-        
-        # Use a heatmap with custom coloring
-        sns.heatmap(cm_norm, annot=cm, fmt='d', cmap='Blues', 
-                  cbar_kws={'label': 'Percentage of True Position'})
-        
-        plt.xlabel('Predicted Position', fontsize=14)
-        plt.ylabel('True Position', fontsize=14)
-        plt.title('Qualifying Position Confusion Matrix', fontsize=16)
-        
-        # Adjust axis labels to start from 1 instead of 0
-        plt.xticks(np.arange(0.5, max_pos+0.5), range(1, max_pos+1))
-        plt.yticks(np.arange(0.5, max_pos+0.5), range(1, max_pos+1))
-        
-        # Highlight the diagonal (perfect predictions)
-        plt.plot(np.arange(0.5, max_pos+0.5), np.arange(0.5, max_pos+0.5), 'r--', linewidth=1.5)
-        
-        # Add annotations for top-3 and top-5 areas
-        plt.axhline(y=3, color='r', linestyle='-', linewidth=1.5, alpha=0.5)
-        plt.axvline(x=3, color='r', linestyle='-', linewidth=1.5, alpha=0.5)
-        plt.text(max_pos-1, 1.5, 'Top-3', color='r', fontsize=12, rotation=90, ha='center', va='center')
-        
-        plt.axhline(y=5, color='g', linestyle='-', linewidth=1.5, alpha=0.5)
-        plt.axvline(x=5, color='g', linestyle='-', linewidth=1.5, alpha=0.5)
-        plt.text(max_pos-0.5, 4, 'Top-5', color='g', fontsize=12, rotation=90, ha='center', va='center')
-        
-        # Save figure
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.visualization_dir, 'confusion_matrix_heatmap.png'), dpi=300)
-        plt.close()
-        
-        logger.info(f"Confusion matrix heatmap saved to {self.visualization_dir}")
-    
     def plot_position_error_distribution(self, model_metrics: Dict):
-        """
-        Create a histogram showing the distribution of position errors.
-        This addresses the third visualization requirement for section 5.2.
-        """
+        """Create a histogram showing the distribution of position errors."""
         if not 'combined_raw_errors' in model_metrics:
             logger.warning("No error data available for histogram")
             return
@@ -884,10 +779,7 @@ class F1PredictionEvaluator:
         logger.info(f"Position error distribution plot saved to {self.visualization_dir}")
     
     def plot_bar_chart_comparison(self):
-        """
-        Create a bar chart comparing key metrics between model and baselines.
-        This addresses the first visualization requirement for section 5.3.
-        """
+        """Create a bar chart comparing key metrics between model and baselines."""
         if not self.comparison_results:
             logger.warning("No comparison results available for bar chart")
             return
@@ -959,151 +851,8 @@ class F1PredictionEvaluator:
         plt.close()
         
         logger.info(f"Bar chart comparison saved to {self.visualization_dir}")
-    
-    def plot_roc_curves(self):
-        """
-        Create ROC curves for comparing Top-N classification performance across models.
-        This addresses the second visualization requirement for section 5.3.
-        """
-        if not self.comparison_results:
-            logger.warning("No comparison results available for ROC curves")
-            return
-        
-        # We'll create separate ROC curves for Top-3 and Top-5 classification
-        for n in [3, 5]:
-            plt.figure(figsize=(10, 8))
-            
-            # Store AUC values for legend
-            auc_values = {}
-            
-            # Colors for different models
-            colors = ['#1E88E5', '#D81B60', '#2E7D32', '#FFC107', '#9C27B0']
-            
-            # Plot ROC curve for each model
-            for i, model_name in enumerate(self.comparison_results.keys()):
-                model_metrics = self.comparison_results[model_name]
-                
-                if f'combined_top{n}_true' in model_metrics and f'combined_top{n}_pred' in model_metrics:
-                    y_true = model_metrics[f'combined_top{n}_true']
-                    y_pred = model_metrics[f'combined_top{n}_pred']
-                    
-                    # Calculate ROC curve
-                    try:
-                        # For binary classification like this, we can use the raw predictions
-                        # But to be more robust, we can treat the binary predictions as probabilities
-                        # by adding a small random noise
-                        y_pred_proba = np.array(y_pred).astype(float)
-                        
-                        # Calculate ROC curve and ROC area
-                        fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
-                        roc_auc = auc(fpr, tpr)
-                        auc_values[model_name] = roc_auc
-                        
-                        # Plot ROC curve
-                        plt.plot(fpr, tpr, lw=2, color=colors[i % len(colors)],
-                               label=f'{model_name} (AUC = {roc_auc:.3f})')
-                    except Exception as e:
-                        logger.error(f"Error calculating ROC curve for {model_name}: {e}")
-            
-            # Plot diagonal reference line (random classifier)
-            plt.plot([0, 1], [0, 1], 'k--', lw=2, label='Random (AUC = 0.5)')
-            
-            # Add styling
-            plt.xlim([0.0, 1.0])
-            plt.ylim([0.0, 1.05])
-            plt.xlabel('False Positive Rate', fontsize=14)
-            plt.ylabel('True Positive Rate', fontsize=14)
-            plt.title(f'ROC Curve for Top-{n} Qualification Prediction', fontsize=16)
-            plt.legend(loc="lower right", fontsize=12)
-            plt.grid(True, alpha=0.3)
-            
-            # Add explanatory annotation
-            plt.annotate('Better performance →', 
-                       xy=(0.4, 0.6), 
-                       xytext=(0.6, 0.4),
-                       arrowprops=dict(facecolor='black', shrink=0.05, width=1.5),
-                       fontsize=12)
-            
-            # Save figure
-            plt.tight_layout()
-            plt.savefig(os.path.join(self.visualization_dir, f'roc_curve_top{n}.png'), dpi=300)
-            plt.close()
-            
-            logger.info(f"ROC curve for Top-{n} saved to {self.visualization_dir}")
-    
-    def plot_cumulative_position_error(self):
-        """
-        Create a line chart showing cumulative percentage of predictions within X positions.
-        This addresses the third visualization requirement for section 5.3.
-        """
-        if not self.comparison_results:
-            logger.warning("No comparison results available for cumulative error plot")
-            return
-        
-        plt.figure(figsize=(10, 6))
-        
-        # Colors for different models
-        colors = ['#1E88E5', '#D81B60', '#2E7D32', '#FFC107', '#9C27B0']
-        
-        # Calculate cumulative error distributions for each model
-        for i, model_name in enumerate(self.comparison_results.keys()):
-            model_metrics = self.comparison_results[model_name]
-            
-            if 'combined_position_errors' in model_metrics:
-                errors = model_metrics['combined_position_errors']
-                
-                # Calculate percentages within each error threshold
-                max_error = max(errors)
-                thresholds = list(range(0, int(max_error) + 2))
-                percentages = []
-                
-                for threshold in thresholds:
-                    count_within = sum(1 for error in errors if error <= threshold)
-                    percentages.append(count_within / len(errors) * 100)
-                
-                # Plot cumulative distribution
-                plt.plot(thresholds, percentages, 'o-', color=colors[i % len(colors)],
-                       linewidth=2, label=model_name)
-                
-                # Add annotations for key thresholds
-                for threshold in [0, 1, 2]:
-                    if threshold < len(percentages):
-                        plt.annotate(f'{percentages[threshold]:.1f}%', 
-                                   xy=(threshold, percentages[threshold]),
-                                   xytext=(3, 0),
-                                   textcoords="offset points",
-                                   fontsize=10)
-        
-        # Add styling
-        plt.xlabel('Position Error Threshold', fontsize=14)
-        plt.ylabel('Percentage of Predictions', fontsize=14)
-        plt.title('Cumulative Position Error Distribution', fontsize=16)
-        plt.grid(True, alpha=0.3)
-        plt.legend(fontsize=12)
-        
-        # Set x-axis to integers only
-        plt.xticks(range(0, int(max_error) + 2))
-        
-        # Format y-axis as percentage
-        plt.ylim(0, 100)
-        plt.yticks(range(0, 101, 10))
-        
-        # Add horizontal lines at important thresholds
-        plt.axhline(y=50, color='gray', linestyle='--', alpha=0.7)
-        plt.axhline(y=90, color='gray', linestyle='--', alpha=0.7)
-        
-        # Add vertical lines at position error thresholds
-        plt.axvline(x=1, color='green', linestyle='--', alpha=0.7, label='Within 1 Position')
-        plt.axvline(x=2, color='orange', linestyle='--', alpha=0.7, label='Within 2 Positions')
-        
-        # Save figure
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.visualization_dir, 'cumulative_position_error.png'), dpi=300)
-        plt.close()
-        
-        logger.info(f"Cumulative position error plot saved to {self.visualization_dir}")
 
-# Helper functions for using the evaluator
+# Helper function for using the evaluator
 def convert_predictions_to_evaluator_format(predictions: List[Dict]) -> List[Dict]:
     """
     Converts the model's prediction output to the format needed by F1PredictionEvaluator.

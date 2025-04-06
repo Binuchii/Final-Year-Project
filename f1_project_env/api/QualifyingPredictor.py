@@ -1442,14 +1442,17 @@ class QualifyingPredictor:
     def get_standardized_circuit_name(self, circuit_name: str) -> str:
         """Map file names to standardized circuit names in the database"""
         
-        # Create a mapping dictionary for circuit names
+        # Convert to lowercase for case-insensitive matching
+        circuit_name_lower = circuit_name.lower().strip()
+        
+        # Create a mapping dictionary for circuit names - centralized mapping
         circuit_mapping = {
             # Original mappings
             'emilia romagna': 'emilia',
             'mexico city': 'mexico',
-            'monaco': 'monaco',      # Changed from 'monaco gp' to 'monte' to match the circuits_data
+            'monaco': 'monte',  # Match the circuits_data key
             'saudi arabian': 'saudi',
-            'united states': 'us',  # Changed from 'us' to match the circuits_data keys
+            'united states': 'us',
             
             # Add additional mappings for possible variations
             'bahrain': 'bahrain',
@@ -1459,7 +1462,7 @@ class QualifyingPredictor:
             'albert park': 'australian',
             'catalunya': 'spanish',
             'barcelona': 'spanish',
-            'monte carlo': 'monaco',
+            'monte carlo': 'monte',
             'silverstone': 'british',
             'spielberg': 'austrian',
             'red bull ring': 'austrian',
@@ -1480,24 +1483,35 @@ class QualifyingPredictor:
             'las vegas': 'vegas'
         }
         
-        # Convert to lowercase for case-insensitive matching
-        circuit_name_lower = circuit_name.lower()
-        
         # First try exact match
         if circuit_name_lower in circuit_mapping:
             return circuit_mapping[circuit_name_lower]
             
-        # Then try partial match
-        for key, value in circuit_mapping.items():
+        # Next, try partial match with the dictionary
+        for key, value in sorted(circuit_mapping.items(), key=lambda x: len(x[0]), reverse=True):
+            # Sort by key length to prioritize longer matches
             if key in circuit_name_lower or circuit_name_lower in key:
                 return value
+        
+        # If it's a multi-word name, try matching individual words
+        if ' ' in circuit_name_lower:
+            words = circuit_name_lower.split()
+            for word in words:
+                if word in circuit_mapping:
+                    return circuit_mapping[word]
                 
-        # If no match found, check if it's already a standard name by looking in circuits_data keys
+                # Try partial match on individual words
+                for key, value in circuit_mapping.items():
+                    if word in key or key in word:
+                        return value
+        
+        # Check if it's already a standard name by looking in circuits_data keys
         if circuit_name_lower in self.data_processor.circuits_data:
             return circuit_name_lower
-                
-        # Return the original if no mapping found
-        return circuit_name_lower
+            
+        # If all else fails, simplify the name (first word only) as a last resort
+        first_word = circuit_name_lower.split()[0] if ' ' in circuit_name_lower else circuit_name_lower
+        return first_word
     
     def _process_weather_features(self, race_info: pd.DataFrame) -> np.ndarray:
         """
