@@ -46,7 +46,7 @@ The system follows a client-server architecture:
 - TailwindCSS (Styling)
 
 ### Data Sources
-- Historical F1 data from Kaggle datasets
+- Historical F1 data from Kaggle and OpenF1 datasets
 - Circuit-specific data stored in CSV format
 
 ## 📁 Project Structure
